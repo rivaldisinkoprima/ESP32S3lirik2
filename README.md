@@ -772,7 +772,238 @@ Serial monitor pada 9600 baud menampilkan:
 
 ---
 
-## 11. Catatan Pengembangan
+## 11. Alur User (User Flow)
+
+Karena perangkat ini dirancang untuk **audio screening** (pemeriksaan pendengaran), pemahaman alur penggunaan sangat penting untuk memastikan operasi yang efisien dan hasil screening yang akurat.
+
+### 11.1 Alur Utama Pengguna (Main User Flow)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PEMAKAIAN PERANGKAT                                  │
+│                    (Audio Screening Device)                                  │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │
+                                  ▼
+                    ┌─────────────────────────────┐
+                    │       POWER ON              │
+                    │   (Splash Logo Elitech)     │
+                    └─────────────┬───────────────┘
+                                  │
+                                  ▼
+                    ┌─────────────────────────────┐
+                    │   (Splash Logo Whisper)     │
+                    │         ↓ 1.5s              │
+                    └─────────────┬───────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           MENU UTAMA                                        │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐                   │
+│  │ ▶ Screening   │  │   ▶ File     │  │  ▶ Atur Jam   │                   │
+│  └───────────────┘  └───────────────┘  └───────────────┘                   │
+│                                                                             │
+│        NEXT/Prev untuk navigasi    │    OKE untuk pilih                     │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │
+          ┌───────────────────────┼───────────────────────┐
+          │                       │                       │
+          ▼                       ▼                       ▼
+   ┌─────────────┐        ┌─────────────┐        ┌─────────────┐
+   │ SCREENING   │        │ FILE LIST   │        │ ATUR JAM    │
+   │ (posisi=2)  │        │ (posisi=4)  │        │ (posisi=3)  │
+   └──────┬──────┘        └──────┬──────┘        └──────┬──────┘
+          │                       │                       │
+          ▼                       ▼                       ▼
+   ┌─────────────┐        ┌─────────────┐        ┌─────────────┐
+   │ 1. Pilih    │        │ Pilih Deret │        │ Atur Waktu  │
+   │    Mode     │        │ 1-10        │        │ +Volume Up  │
+   │ (All/Kiri/  │        │             │        │ -Volume Down│
+   │  Kanan)     │        └──────┬──────┘        │ ↑Next=jam++ │
+   │             │               │               │ ↓Prev=jam-- │
+   └──────┬──────┘               │               │ MODE=simpan │
+          │                       ▼               └─────────────┘
+          ▼               ┌─────────────┐
+   ┌─────────────┐        │ DETAIL      │
+   │ 2. Pilih    │        │ DERRT       │
+   │    Deret    │        │ (posisi=5)  │
+   │   (1-10)   │        └─────────────┘
+   │             │
+   └──────┬──────┘
+          │
+          ▼
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                         MODE SCREENING AKTIF                            │
+   │                                                                          │
+   │  ┌──────────────────────────────────────────────────────────────────┐   │
+   │  │                    TAMPILAN LYRIK SYNC                           │   │
+   │  │                                                                  │   │
+   │  │    [●] SABUN  KUDA  DINGIN  BANYAK  GULA  PIPI  BESAR  ...     │   │
+   │  │         ▲                                                         │   │
+   │  │    kata aktif                                                     │   │
+   │  └──────────────────────────────────────────────────────────────────┘   │
+   │                                                                          │
+   │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐          │
+   │  │    [HOME]       │  │    [OKE]        │  │    [MODE]       │          │
+   │  │  Kembali Menu   │  │  Play / Pause   │  │  Ganti Mode     │          │
+   │  └─────────────────┘  └─────────────────┘  └─────────────────┘          │
+   │                                                                          │
+   │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐          │
+   │  │   [NEXT]        │  │   [PREV]        │  │   [DOKTER]      │          │
+   │  │  Deret Berikut  │  │  Deret Sebelumnya│  │  Mode Mic ON   │          │
+   │  └─────────────────┘  └─────────────────┘  └─────────────────┘          │
+   │                                                                          │
+   │  ┌─────────────────┐  ┌─────────────────┐                               │
+   │  │  [VOL+]        │  │  [VOL-]         │                               │
+   │  │  Volume Naik   │  │  Volume Turun   │                               │
+   │  └─────────────────┘  └─────────────────┘                               │
+   └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.2 Skenario Penggunaan Tipikal
+
+#### Skenario 1: Pemeriksaan Screening Standar
+
+```
+TAHAPAN                          AKSI PENGGUNA                  HASIL
+─────────────────────────────────────────────────────────────────────────
+1. Persiapan                     Nyalakan perangkat             Splash → Menu Utama
+2. Pilih Menu                     NEXT → Screening → OKE         Masuk mode screening
+3. Pilih Mode                     MODE (pilih All/Kiri/Kanan)   Mode tersimpan
+4. Pilih Deret                    NEXT/PREV (1-10)              Deret dipilih
+5. Mulai Pemutaran               OKE (Play)                    Musik & lirik berjalan
+6. Rekam Respons                  [Pengguna merekam respons]    Kata ditampilkan sinkron
+7. Jeda (jika perlu)              OKE (Pause)                   Musik berhenti
+8. Lanjut/Lain Deret              NEXT/PREV                     Pindah deret
+9. Selesai                        HOME                          Kembali ke Menu
+```
+
+#### Skenario 2: Pemeriksaan Mode Telinga Kiri
+
+```
+TAHAPAN                          AKSI PENGGUNA                  HASIL
+─────────────────────────────────────────────────────────────────────────
+1. Pilih Menu Screening          NEXT → OKE                     Masuk screening
+2. Pilih Mode Kiri                MODE (2x) → Mode=Kiri         Indicator "KIRI"
+3. Pilih Deret                    NEXT (misal: Deret 3)          Deret 3 terpilih
+4. Mulai                          OKE                            Musik folder 02/003.mp3
+5. Pasang Headphone              [Pengguna pasang di telinga    Audio dari DFPlayer
+                                 kiri]                          Output mono/specific
+6. Catat Respons                 [Rekam hasil screening]        -
+7. Selesai                       HOME                            Kembali menu
+```
+
+#### Skenario 3: Mode Dokter (Komunikasi)
+
+```
+TAHAPAN                          AKSI PENGGUNA                  HASIL
+─────────────────────────────────────────────────────────────────────────
+1. Screening Berjalan            Musik & lirik aktif            Audio playing
+2. Aktifkan Mode Dokter           Tekan tombol DOKTER             TrigMic = HIGH
+3. Mic ON Indicator               [Tampil di LCD]                Icon mic aktif
+4. Berbicara ke Pasien            [Dokter bicara via mic]        Audio mic ke headphone
+5. Matikan Mode Dokter            Tekan lagi tombol DOKTER       TrigMic = LOW
+6. Lanjut Screening               Musik resumes                   Resume playing
+```
+
+#### Skenario 4: Pengaturan Waktu RTC
+
+```
+TAHAPAN                          AKSI PENGGUNA                  HASIL
+─────────────────────────────────────────────────────────────────────────
+1. Dari Menu Utama                NEXT → NEXT → OKE (Atur Jam)   Masuk mode Atur Jam
+2. Atur Menit                     VOL+ / VOL-                    Menit +1/-1 (wrap 0-59)
+3. Konfirmasi Menit               NEXT                           Pindah ke jam
+4. Atur Jam                       NEXT / PREV                    Jam +1/-1 (wrap 0-23)
+5. Simpan Pengaturan              MODE                           Waktu tersimpan ke RTC
+6. Kembali Menu                   HOME                           Menu Utama
+```
+
+### 11.3 Tabel Feedback Visual Sistem
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            FEEDBACK VISUAL LCD                              │
+├──────────────────────┬──────────────────────────────────────────────────────┤
+│ KONDISI SISTEM       │ FEEDBACK TAMPILAN                                   │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Power On             │ Logo Elitech (2s) → Logo Whisper (1.5s) → Menu      │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Menu Utama           │ 3 pilihan: Screening, File, Atur Jam (highlight)    │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Mode Screening       │ Tampilan lirik + play icon + deret + mode + jam     │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Playing              │ ▶ (triangle) icon, kata berganti sinkron             │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Paused               │ ▮▮ (rectangle) icon, lirik frozen                    │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Mode = All           │ Text "ALL" di display                                │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Mode = Kiri          │ Text "KIRI" di display                               │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Mode = Kanan         │ Text "KANAN" di display                              │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Mode Dokter ON       │ Icon mic + text "DOKTER"                             │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Volume Up            │ t_loud +1 (range 0-30), bar graph                    │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Volume Down          │ t_loud -1 (range 0-30), bar graph                    │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Battery Low          │ Icon battery + warning (jika <20%)                   │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Charging             │ Icon charging (jika CHRG pin LOW)                     │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│ Power Off            │ Layar "OFF" (setelah long press 2s)                  │
+└──────────────────────┴──────────────────────────────────────────────────────┘
+```
+
+### 11.4 Diagram Interaksi Pengguna-Peran
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PERAN PENGGUNA & INTERAKSI                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────┐
+    │   DOKTER     │
+    │  (Operator)  │
+    └──────┬───────┘
+           │
+           │ Mengoperasikan perangkat
+           │ Memberikan instruksi lisan (mode dokter)
+           │ Merekam hasil screening
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        ESP32-S3 LIRIK PLAYER                                 │
+│                                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                   │
+│  │  TAMPILAN   │    │   KONTROL   │    │   AUDIO     │                   │
+│  │  LCD 128x160│    │   TOMBOL    │    │  DFPlayer   │                   │
+│  └─────────────┘    └─────────────┘    └─────────────┘                   │
+│                                                                             │
+│  Menampilkan:              Menghandle:           Output:                  │
+│  - Lirik sync              - NEXT/PREV           - Musik MP3               │
+│  - Menu                    - OKE/PAUSE           - Mode dokter (mic)       │
+│  - Status                  - HOME                                            │
+│  - Jam & Battery           - MODE                                           │
+│                            - VOL+/-                                         │
+│                            - DOKTER                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+           │
+           │ Hasil screening audio
+           │ (kata yang didengar & direspons)
+           │
+           ▼
+    ┌──────────────┐
+    │   PASIEN     │
+    │(Yang disksrining)│
+    └──────────────┘
+```
+
+---
+
+## 12. Catatan Pengembangan
 
 - Project ini menggunakan Arduino IDE dengan board ESP32
 - File bitmap disimpan dalam format uint16_t array di PROGMEM
