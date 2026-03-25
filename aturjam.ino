@@ -7,3 +7,4 @@ void aturjam(){
   tft.print("00:00");
   tft.setTextSize(1);
 }
+//init
