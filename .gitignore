@@ -1,0 +1,16 @@
+# Audio folder / files
+music/
+01/
+02/
+03/
+*.mp3
+*.wav
+
+# Arduino Build dan folder konfigurasi
+build/
+.pio/
+.vscode/
+*.bin
+*.elf
+*.hex
+*.map
