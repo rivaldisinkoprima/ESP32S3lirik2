@@ -60,52 +60,6 @@ def split_channels(audio):
     return left, right
 
 
-def compute_channel_dynamics(channel_audio):
-    """
-    Menghitung 'dinamika' sebuah channel: seberapa besar variasi RMS-nya.
-    Channel yang berisi suara kata akan memiliki variasi tinggi
-    (diam -> keras -> diam). Channel noise murni variasinya rendah.
-    """
-    envelope = compute_rms_envelope(channel_audio)
-    if not envelope:
-        return 0.0
-    dbfs_values = [dbfs for _, dbfs in envelope]
-    dbfs_values.sort()
-    # Dynamic range = perbedaan antara percentile 90 dan percentile 10
-    low = dbfs_values[max(0, int(len(dbfs_values) * 0.10))]
-    high = dbfs_values[min(len(dbfs_values) - 1, int(len(dbfs_values) * 0.90))]
-    return high - low
-
-
-def detect_speech_channel(audio):
-    """
-    Auto-detect channel mana yang berisi suara kata.
-    Returns: 'left', 'right', atau 'both'
-    """
-    if audio.channels == 1:
-        return 'both'
-
-    left, right = split_channels(audio)
-    left_dynamics = compute_channel_dynamics(left)
-    right_dynamics = compute_channel_dynamics(right)
-
-    # Jika keduanya memiliki dinamika tinggi (>= 60% dari yang tertinggi),
-    # maka keduanya berisi suara (folder 03 / all)
-    max_dynamics = max(left_dynamics, right_dynamics)
-    if max_dynamics == 0:
-        return 'both'
-
-    left_ratio = left_dynamics / max_dynamics
-    right_ratio = right_dynamics / max_dynamics
-
-    if left_ratio >= 0.6 and right_ratio >= 0.6:
-        return 'both'
-    elif left_dynamics > right_dynamics:
-        return 'left'
-    else:
-        return 'right'
-
-
 # ---------------------------------------------------------
 #  ENGINE: ENVELOPE & DETEKSI ADAPTIF
 # ---------------------------------------------------------
@@ -145,81 +99,52 @@ def compute_rms_envelope(audio, window_ms=WINDOW_MS):
     return envelope
 
 
-def estimate_noise_floor(envelope, percentile=10):
-    if not envelope:
-        return -60.0
-    dbfs_values = sorted([dbfs for _, dbfs in envelope])
-    idx = max(0, int(len(dbfs_values) * percentile / 100) - 1)
-    return dbfs_values[idx]
+def detect_words_absolute(audio_mono, expected_words):
+    """Deteksi posisi kata dengan Threshold Absolut (-32 dBFS)."""
+    env = compute_rms_envelope(audio_mono)
+    if not env:
+        return 0, []
 
+    thresh = -32.0
+    is_sp = [d > thresh for _, d in env]
+    
+    segs = []
+    in_sp = False
+    start = 0
+    for i, sp in enumerate(is_sp):
+        t = env[i][0]
+        if sp and not in_sp:
+            start = t; in_sp = True
+        elif not sp and in_sp:
+            segs.append((start, t)); in_sp = False
+    if in_sp: segs.append((start, env[-1][0]))
 
-def detect_words_adaptive(envelope, threshold_dbfs, min_word_ms, min_silence_ms):
-    if not envelope:
-        return []
+    segs = [(s, e) for s, e in segs if 200 <= (e - s) <= 10000]
 
-    is_speech = [dbfs > threshold_dbfs for _, dbfs in envelope]
-    segments = []
-    in_speech = False
-    seg_start = 0
-
-    for i, speech in enumerate(is_speech):
-        time_ms = envelope[i][0]
-        if speech and not in_speech:
-            seg_start = time_ms
-            in_speech = True
-        elif not speech and in_speech:
-            segments.append((seg_start, time_ms))
-            in_speech = False
-
-    if in_speech:
-        segments.append((seg_start, envelope[-1][0]))
-
-    # Filter durasi minimum dan MAXIMUM kata (buang noise mic yang berkepanjangan)
-    segments = [(s, e) for s, e in segments if (e - s) >= min_word_ms and (e - s) <= 4000]
-
-    # Merge segmen yang jaraknya terlalu dekat
-    merged = []
-    for seg in segments:
-        if merged and (seg[0] - merged[-1][1]) < min_silence_ms:
-            merged[-1] = (merged[-1][0], seg[1])
-        else:
-            merged.append(seg)
-    return merged
-
-
-# ---------------------------------------------------------
-#  ENGINE: AUTO-TUNING
-# ---------------------------------------------------------
-def auto_tune_detection(envelope, noise_floor, expected_words, filename):
-    """
-    Kecerdasan Buatan (Auto-Tuning 2 Dimensi):
-    Mencari kombinasi Offset Threshold (Sensitivitas) & Durasi Jeda
-    yang paling presisi untuk menemukan jumlah kata persis sesuai target.
-    """
-    best_result = None
+    best_result = []
     best_diff = 9999
+    best_ms = 0
 
-    # Coba berbagai tingkat sensitivitas (dari sangat sensitif +2dB, sampai kebal +12dB)
-    for offset_db in [2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0]:
-        thresh = noise_floor + offset_db
+    for ms in range(250, 2001, 50):
+        merged = []
+        for seg in segs:
+            if merged and (seg[0] - merged[-1][1]) < ms:
+                merged[-1] = (merged[-1][0], seg[1])
+            else:
+                merged.append(seg)
         
-        # Coba berbagai jeda pemisah kata (dari 300ms ke 1500ms)
-        for ms in range(300, 1501, 100):
-            words = detect_words_adaptive(envelope, thresh, DEFAULT_MIN_WORD_MS, ms)
-            diff = abs(len(words) - expected_words)
+        merged = [(int(s), int(e)) for s, e in merged if (e - s) <= 10000 and audio_mono[int(s):int(e)].dBFS > -35.0]
+        
+        diff = abs(len(merged) - expected_words)
+        if diff < best_diff:
+            best_diff = diff
+            best_result = merged
+            best_ms = ms
+            
+        if diff == 0:
+            return best_ms, best_result
 
-            if diff < best_diff:
-                best_diff = diff
-                best_result = (ms, thresh, words)
-
-            if diff == 0:
-                print(f"      [Auto-Tune] Sukses! (Sensitivitas +{offset_db}dB, Jeda {ms}ms)")
-                return best_result
-
-    tuned_ms, best_thresh, tuned_words = best_result
-    offset_used = best_thresh - noise_floor
-    print(f"      [Auto-Tune] Mentok di Sensitivitas +{offset_used}dB, Jeda {tuned_ms}ms (Selisih {best_diff} kata)")
-    return best_result
+    return best_ms, best_result
 
 
 # ---------------------------------------------------------
@@ -331,30 +256,22 @@ def process_single_file(filepath, delay_ms, initial_delay_ms, output_path):
     # 1. Normalisasi Volume
     audio = audio.normalize(headroom=1.0)
 
-    # 2. Deteksi Channel Suara (Stereo-Aware)
-    speech_channel_name = detect_speech_channel(audio)
-    if speech_channel_name == 'left':
+    # 2. Assign Channel Suara Secara Pasti (Hardcoded by Folder)
+    folder_name = os.path.basename(os.path.dirname(filepath))
+    if folder_name == "01":
         analysis_audio = split_channels(audio)[0]
         ch_label = "LEFT"
-    elif speech_channel_name == 'right':
+    elif folder_name == "02":
         analysis_audio = split_channels(audio)[1]
         ch_label = "RIGHT"
     else:
-        # Both atau mono → gunakan mono mix
-        if audio.channels == 2:
-            analysis_audio = audio.set_channels(1)
-        else:
-            analysis_audio = audio
+        analysis_audio = audio.set_channels(1) if audio.channels == 2 else audio
         ch_label = "BOTH"
 
     print(f"      Channel suara  : {ch_label}")
 
-    # 3. Analisa Envelope pada CHANNEL SUARA saja
-    envelope = compute_rms_envelope(analysis_audio)
-    noise_floor = estimate_noise_floor(envelope, 10)
-
-    # 4. Auto-Tuning 2-Dimensi: Cari sensitivitas dan min_silence yang menghasilkan target
-    tuned_ms, tuned_thresh, word_ranges = auto_tune_detection(envelope, noise_floor, expected, filename)
+    # 3. Deteksi Kata secara Absolut
+    tuned_ms, word_ranges = detect_words_absolute(analysis_audio, expected)
     num_words = len(word_ranges)
 
     status = "✅" if num_words == expected else "⚠️"
