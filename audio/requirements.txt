@@ -1,6 +1,0 @@
-# Library utama untuk pemrosesan file MP3/Audio
-pydub>=0.25.1
-
-# Dukungan wajib bagi pengguna Python 3.13 ke atas
-# (Karena library bawaan \`audioop\` resmi dihapus dari Python versi 3.13+)
-audioop-lts>=0.1.1
