@@ -12,6 +12,14 @@
 #include <SoftwareSerial.h>
 #include <Wire.h>
 
+// BLE and LittleFS
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include <FS.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
+
 
 HardwareSerial mySerial1(1);
 
@@ -285,6 +293,10 @@ void tampiljam();
 void file();
 void listderet();
 void begin();
+void initBLE();
+void handleBLE();
+bool initLittleFS();
+bool deretExistsInLittleFS(int slot);
 // ---------------------------------------------
 
 void setup() {
@@ -339,26 +351,33 @@ void setup() {
   Serial.println("Initializing DFPlayer ...");
 
   if (!myDFPlayer.begin(mySerial1, true, true)) {
-    Serial.println(F("Unable to begin DFPlayer: Check wiring or SD card."));
-    while (true)
-      ;
+    Serial.println(F("DFPlayer tidak ditemukan (Skip untuk testing)"));
+    // while (true) ; // Disabled untuk testing tanpa hardware
+  } else {
+    // ----Set volume----
+    myDFPlayer.volume(loud); // Set volume value (0~30).
+
+    //----Set different EQ----
+    myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
+
+    myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+    myDFPlayer.playFolder(1, 1);
+    delay(200);
+    myDFPlayer.stop();
   }
-
-  // ----Set volume----
-  myDFPlayer.volume(loud); // Set volume value (0~30).
-
-  //----Set different EQ----
-  myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
-
-  myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
-  myDFPlayer.playFolder(1, 1);
-  delay(200);
-  myDFPlayer.stop();
   tft.setFont(&FreeSans9pt7b); // Atur font
   tft.setTextSize(1);
   readRTC();
   digitalWrite(TrigMic, HIGH);
   digitalWrite(TrigRlyDF, HIGH);
+  
+  // Initialize LittleFS
+  if (initLittleFS()) {
+    Serial.println("[LFS] Using LittleFS for lyrics storage");
+  }
+  
+  // Initialize BLE Server
+  initBLE();
 }
 
 void menu(int pilihan) {
