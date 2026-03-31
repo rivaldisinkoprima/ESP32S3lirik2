@@ -1,3 +1,14 @@
+// BLE Sync Screen
+//
+// Fungsi:
+// - Scan device BLE "Lirik S3"
+// - Connect dengan PIN (123456)
+// - Sync All: Kirim semua data deret ke ESP32 via BLE
+// - Factory Reset: Reset ESP32 ke default
+// - Disconnect: Putus koneksi BLE
+//
+// Routes: '/sync'
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/ble_provider.dart';
@@ -13,6 +24,95 @@ class BleSyncScreen extends StatefulWidget {
 class _BleSyncScreenState extends State<BleSyncScreen> {
   bool _isSyncing = false;
 
+  Widget _buildSectionHeader(String title) {
+    return Container(
+      width: double.infinity,
+      color: Colors.blue.shade800,
+      padding: const EdgeInsets.all(12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceList(BleProvider ble) {
+    return ListView.builder(
+      itemCount: ble.scanResults.length,
+      itemBuilder: (context, index) {
+        final result = ble.scanResults[index];
+        final name = result.device.platformName.isNotEmpty
+            ? result.device.platformName
+            : 'Unknown Device';
+        return ListTile(
+          title: Text(name),
+          subtitle: Text(result.device.remoteId.toString()),
+          trailing: ElevatedButton(
+            onPressed: () => _showPinDialog(context, ble, result.device),
+            child: const Text('Connect'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildConnectedContent(BleProvider ble, WorkspaceProvider workspace) {
+    if (_isSyncing) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
+          const SizedBox(height: 16),
+          Text('Connected to ${ble.connectedDevice?.platformName}'),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: 250,
+            child: ElevatedButton.icon(
+              onPressed: () => _startSync(ble, workspace),
+              icon: const Icon(Icons.cloud_upload),
+              label: const Text('Sync All to Device'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: 250,
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmReset(context, ble),
+              icon: const Icon(Icons.restore, color: Colors.orange),
+              label: const Text('Factory Reset'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.orange),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: 250,
+            child: OutlinedButton.icon(
+              onPressed: () => ble.disconnect(),
+              icon: const Icon(Icons.bluetooth_disabled, color: Colors.red),
+              label: const Text('Disconnect'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ble = Provider.of<BleProvider>(context);
@@ -22,92 +122,14 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       appBar: AppBar(title: const Text('Sync to Device')),
       body: Column(
         children: [
-          // Connection status
           _buildStatusHeader(ble),
-
-          if (!ble.isConnected)
-            Expanded(
-              child: ListView.builder(
-                itemCount: ble.scanResults.length,
-                itemBuilder: (context, index) {
-                  final result = ble.scanResults[index];
-                  final name = result.device.platformName.isNotEmpty
-                      ? result.device.platformName
-                      : 'Unknown Device';
-                  return ListTile(
-                    title: Text(name),
-                    subtitle: Text(result.device.remoteId.toString()),
-                    trailing: ElevatedButton(
-                      onPressed: () =>
-                          _showPinDialog(context, ble, result.device),
-                      child: const Text('Connect'),
-                    ),
-                  );
-                },
-              ),
-            )
-          else
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_isSyncing)
-                      const CircularProgressIndicator()
-                    else ...[
-                      const Icon(
-                        Icons.check_circle_outline,
-                        size: 80,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(height: 16),
-                      Text('Connected to ${ble.connectedDevice?.platformName}'),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: 250,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _startSync(ble, workspace),
-                          icon: const Icon(Icons.cloud_upload),
-                          label: const Text('Sync All to Device'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.all(16),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: 250,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _confirmReset(context, ble),
-                          icon: const Icon(Icons.restore, color: Colors.orange),
-                          label: const Text('Factory Reset'),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.orange),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: 250,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            ble.disconnect();
-                          },
-                          icon: const Icon(
-                            Icons.bluetooth_disabled,
-                            color: Colors.red,
-                          ),
-                          label: const Text('Disconnect'),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.red),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+          if (!ble.isConnected) ...[
+            _buildSectionHeader('PILIH PERANGKAT'),
+            Expanded(child: _buildDeviceList(ble)),
+          ] else ...[
+            _buildSectionHeader('TERHUBUNG'),
+            Expanded(child: _buildConnectedContent(ble, workspace)),
+          ],
         ],
       ),
       floatingActionButton: !ble.isConnected
@@ -149,7 +171,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
   }
 
   void _showPinDialog(BuildContext context, BleProvider ble, var device) {
-    String pin = "123456"; // Default PIN from PRD
+    String pin = "123456";
     showDialog(
       context: context,
       builder: (context) {

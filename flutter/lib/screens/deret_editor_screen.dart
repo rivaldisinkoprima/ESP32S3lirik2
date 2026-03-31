@@ -1,3 +1,15 @@
+// Deret Editor Screen
+//
+// Fungsi:
+// - Pilih file MP3 audio
+// - Auto-Detect Spikes: Deteksi timing kata dari waveform
+// - Edit kata (maks 8 karakter) dan timestamp
+// - Preview: Play audio dari timestamp tertentu
+// - Visual: Waveform dengan progress dan active word highlight
+// - Simpan ke workspace
+//
+// Routes: Via Navigator.push dari HomeScreen
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -58,7 +70,16 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         shouldExtractWaveform: true,
       );
 
-      _playerController.onPlayerStateChanged.listen((state) => setState(() {}));
+      // Listen for player state changes
+      _playerController.onPlayerStateChanged.listen((state) {
+        setState(() {});
+        // If player stopped naturally, reset active index
+        if (state == PlayerState.stopped) {
+          setState(() {
+            _currentPlayingIndex = -1;
+          });
+        }
+      });
 
       setState(() {
         _isPlayerReady = true;
@@ -151,31 +172,59 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
     final timestamp = _editingDeret.words[index].timestampMs;
 
-    // Cancel previous subscription
-    await _durationSubscription?.cancel();
+    // If already playing this word, pause it
+    if (_currentPlayingIndex == index) {
+      await _playerController.pausePlayer();
+      await _durationSubscription?.cancel();
+      _durationSubscription = null;
+      setState(() {
+        _currentPlayingIndex = -1;
+      });
+      return;
+    }
 
-    // Stop player completely first
-    await _playerController.stopPlayer();
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      // Cancel old listener
+      await _durationSubscription?.cancel();
+      _durationSubscription = null;
 
-    // Seek to position
-    await _playerController.seekTo(timestamp);
-    await Future.delayed(const Duration(milliseconds: 50));
+      final state = _playerController.playerState;
 
-    // Start playing
-    await _playerController.startPlayer();
+      if (state == PlayerState.playing) {
+        // Already playing - just seek to new position
+        await _playerController.seekTo(timestamp);
+      } else if (state == PlayerState.paused) {
+        // Paused - resume then seek
+        await _playerController.startPlayer();
+        // Small delay to let play resume before seeking
+        await Future.delayed(const Duration(milliseconds: 50));
+        await _playerController.seekTo(timestamp);
+      } else {
+        // Stopped (initial state) - start playing then seek
+        await _playerController.startPlayer();
+        // Give audio pipeline time to initialize
+        await Future.delayed(const Duration(milliseconds: 100));
+        // Now seek to target position
+        await _playerController.seekTo(timestamp);
+      }
 
-    setState(() {
-      _currentPlayingIndex = index;
-    });
+      setState(() {
+        _currentPlayingIndex = index;
+      });
 
-    // Listen for position updates to track current word
-    _durationSubscription = _playerController.onCurrentDurationChanged.listen((
-      duration,
-    ) {
-      if (!mounted) return;
-      _updateCurrentPlayingIndex(duration);
-    });
+      // Listen for position updates to track current word
+      _durationSubscription = _playerController.onCurrentDurationChanged.listen(
+        (duration) {
+          if (!mounted) return;
+          _updateCurrentPlayingIndex(duration);
+        },
+      );
+    } catch (e) {
+      debugPrint('Play error: $e');
+      setState(() {
+        _currentPlayingIndex = -1;
+      });
+    }
   }
 
   void _updateCurrentPlayingIndex(int currentMs) {
@@ -246,6 +295,19 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       body: Column(
         children: [
           // Audio Section
+          Container(
+            width: double.infinity,
+            color: Colors.blue.shade800,
+            padding: const EdgeInsets.all(12),
+            child: const Text(
+              'PILIH AUDIO',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -370,6 +432,19 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
           const Divider(),
           // Word List Section
+          Container(
+            width: double.infinity,
+            color: Colors.blue.shade800,
+            padding: const EdgeInsets.all(12),
+            child: const Text(
+              'DAFTAR KATA',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
           Expanded(
             child: ListView.builder(
               itemCount: _wordControllers.length,
@@ -406,10 +481,26 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                         ),
                         IconButton(
                           icon: Icon(
-                            Icons.play_circle_outline,
+                            isActive
+                                ? Icons.pause_circle
+                                : Icons.play_circle_outline,
                             color: isActive ? Colors.orange : Colors.green,
+                            size: 28,
                           ),
-                          onPressed: () => _playFromWord(index),
+                          onPressed: () async {
+                            if (isActive) {
+                              // Pause playback
+                              await _playerController.pausePlayer();
+                              await _durationSubscription?.cancel();
+                              _durationSubscription = null;
+                              setState(() {
+                                _currentPlayingIndex = -1;
+                              });
+                            } else {
+                              // Play from this word's timestamp
+                              await _playFromWord(index);
+                            }
+                          },
                         ),
                         IconButton(
                           icon: const Icon(

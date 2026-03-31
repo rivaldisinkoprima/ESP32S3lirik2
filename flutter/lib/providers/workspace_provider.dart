@@ -1,3 +1,12 @@
+// Workspace Provider
+//
+// Fungsi:
+// - Manage 10 slot deret (data lirik)
+// - Simpan/update data ke local storage
+// - Global offset: -500ms hingga +500ms (default 150ms)
+// - Build bulk JSON untuk sync ke ESP32
+// - Reset to default
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';

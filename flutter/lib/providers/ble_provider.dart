@@ -1,3 +1,15 @@
+// BLE Provider
+//
+// Fungsi:
+// - Manage Bluetooth BLE connection ke ESP32
+// - Scan device, connect/disconnect
+// - Write data: Kirim JSON payload dengan chunking 512 bytes
+// - Send reset: Kirim command factory reset
+//
+// UUIDs:
+// - Service: 4fafc201-1fb5-459e-8fcc-c5c9c331914b
+// - Characteristic: beb5483e-36e1-4688-b7f5-ea07361b26a8
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';

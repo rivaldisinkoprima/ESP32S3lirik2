@@ -1,3 +1,13 @@
+// Home Screen / Workspace Screen
+//
+// Fungsi:
+// - Menampilkan daftar 10 slot deret (workspace)
+// - Warning banner penggunaan file MP3 dari Folder 03
+// - Navigasi ke DeretEditorScreen untuk edit kata
+// - Tombol ke Settings dan BLE Sync
+//
+// Routes: '/'
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/workspace_provider.dart';
@@ -9,7 +19,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final workspace = Provider.of<WorkspaceProvider>(context);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lirik Sync Workspace'),
@@ -32,8 +42,24 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(8.0),
             child: const Text(
               'Peringatan: Gunakan file MP3 dari FOLDER 03 (bebas noise)',
-              style: TextStyle(color: Colors.brown, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.brown,
+                fontWeight: FontWeight.bold,
+              ),
               textAlign: TextAlign.center,
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            color: Colors.blue.shade800,
+            padding: const EdgeInsets.all(12),
+            child: const Text(
+              'DAFTAR DERET',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
           Expanded(
@@ -43,15 +69,22 @@ class HomeScreen extends StatelessWidget {
                 final deret = workspace.derets[index];
                 return ListTile(
                   leading: CircleAvatar(child: Text('${deret.slotNumber}')),
-                  title: Text(deret.displayTitle ?? 'Deret ${deret.slotNumber}'),
-                  subtitle: Text(deret.isSynced ? 'Synced • ${deret.words.length} words' : 'Not synced'),
+                  title: Text(
+                    deret.displayTitle ?? 'Deret ${deret.slotNumber}',
+                  ),
+                  subtitle: Text(
+                    deret.isSynced
+                        ? 'Synced • ${deret.words.length} words'
+                        : 'Not synced',
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.push(
-                      context, 
+                      context,
                       MaterialPageRoute(
-                        builder: (_) => DeretEditorScreen(slotNumber: deret.slotNumber)
-                      )
+                        builder: (_) =>
+                            DeretEditorScreen(slotNumber: deret.slotNumber),
+                      ),
                     );
                   },
                 );
