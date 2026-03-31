@@ -20,6 +20,120 @@ import '../models/word_entry.dart';
 import '../providers/workspace_provider.dart';
 import '../services/spike_detector.dart';
 
+class _ProgressPainter extends CustomPainter {
+  final double progress;
+  final List<int> wordTimestamps;
+  final int totalDuration;
+  final int activeIndex;
+
+  _ProgressPainter({
+    required this.progress,
+    required this.wordTimestamps,
+    required this.totalDuration,
+    required this.activeIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final barHeight = 4.0;
+    final markerHeight = 16.0;
+    final markerWidth = 2.0;
+    final topPadding = 20.0;
+
+    final bgPaint = Paint()
+      ..color = Colors.grey.withAlpha(77)
+      ..strokeWidth = barHeight
+      ..strokeCap = StrokeCap.round;
+
+    final livePaint = Paint()
+      ..color = Colors.blueAccent
+      ..strokeWidth = barHeight
+      ..strokeCap = StrokeCap.round;
+
+    final markerPaint = Paint()
+      ..color = Colors.orange
+      ..strokeWidth = markerWidth
+      ..strokeCap = StrokeCap.round;
+
+    final activeMarkerPaint = Paint()
+      ..color = Colors.red
+      ..strokeWidth = markerWidth + 1
+      ..strokeCap = StrokeCap.round;
+
+    final y = topPadding + (markerHeight - barHeight) / 2;
+
+    // Background bar
+    canvas.drawLine(Offset(0, y), Offset(size.width, y), bgPaint);
+
+    // Progress bar
+    if (progress > 0) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width * progress, y),
+        livePaint,
+      );
+    }
+
+    // Word markers
+    for (int i = 0; i < wordTimestamps.length; i++) {
+      final ts = wordTimestamps[i];
+      if (ts <= 0 || totalDuration <= 0) continue;
+      final xPos = (ts / totalDuration) * size.width;
+      final isActive = i == activeIndex;
+      final paint = isActive ? activeMarkerPaint : markerPaint;
+
+      canvas.drawLine(
+        Offset(xPos, topPadding),
+        Offset(xPos, topPadding + markerHeight),
+        paint,
+      );
+
+      // Draw word label
+      if (i < wordTimestamps.length) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: '${i + 1}',
+            style: TextStyle(
+              fontSize: 9,
+              color: isActive ? Colors.red : Colors.grey.shade600,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(
+          canvas,
+          Offset(
+            xPos - textPainter.width / 2,
+            topPadding - textPainter.height - 2,
+          ),
+        );
+      }
+    }
+
+    // Playhead triangle
+    if (progress > 0 && progress < 1) {
+      final playheadX = size.width * progress;
+      final playheadPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      final path = Path()
+        ..moveTo(playheadX - 6, y - 8)
+        ..lineTo(playheadX + 6, y - 8)
+        ..lineTo(playheadX, y + 2)
+        ..close();
+      canvas.drawPath(path, playheadPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.activeIndex != activeIndex;
+  }
+}
+
 class DeretEditorScreen extends StatefulWidget {
   final int slotNumber;
 
@@ -68,6 +182,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       await _playerController.preparePlayer(
         path: path,
         shouldExtractWaveform: true,
+        noOfSamples: 500,
       );
 
       // Listen for player state changes
@@ -261,6 +376,83 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     }
   }
 
+  Widget _buildProgressBar() {
+    return FutureBuilder<int>(
+      future: _playerController.getDuration(),
+      builder: (context, durationSnapshot) {
+        if (!durationSnapshot.hasData) {
+          return const SizedBox(
+            height: 60,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        final totalDuration = durationSnapshot.data!;
+        return StreamBuilder<int>(
+          stream: _playerController.onCurrentDurationChanged,
+          builder: (context, currentSnapshot) {
+            final currentMs = currentSnapshot.data ?? 0;
+            final progress = totalDuration > 0
+                ? currentMs / totalDuration
+                : 0.0;
+
+            return Column(
+              children: [
+                GestureDetector(
+                  onTapDown: (details) {
+                    final box = context.findRenderObject() as RenderBox?;
+                    if (box == null) return;
+                    final dx = details.localPosition.dx;
+                    final width = box.size.width;
+                    final tapProgress = (dx / width).clamp(0.0, 1.0);
+                    final seekMs = (tapProgress * totalDuration).toInt();
+                    _seekToPosition(seekMs);
+                  },
+                  child: SizedBox(
+                    height: 60,
+                    child: CustomPaint(
+                      size: Size(double.infinity, 60),
+                      painter: _ProgressPainter(
+                        progress: progress,
+                        wordTimestamps: _editingDeret.words
+                            .map((w) => w.timestampMs)
+                            .toList(),
+                        totalDuration: totalDuration,
+                        activeIndex: _currentPlayingIndex,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${(currentMs / 1000).toStringAsFixed(1)}s / ${(totalDuration / 1000).toStringAsFixed(1)}s',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _seekToPosition(int seekMs) async {
+    if (!_isPlayerReady) return;
+    try {
+      final state = _playerController.playerState;
+      if (state == PlayerState.stopped) {
+        await _playerController.startPlayer();
+        await Future.delayed(const Duration(milliseconds: 100));
+      } else if (state == PlayerState.paused) {
+        await _playerController.startPlayer();
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      await _playerController.seekTo(seekMs);
+      _updateCurrentPlayingIndex(seekMs);
+    } catch (e) {
+      debugPrint('Seek error: $e');
+    }
+  }
+
   void _save() {
     for (int i = 0; i < _wordControllers.length; i++) {
       String val = _wordControllers[i].text.toUpperCase();
@@ -328,84 +520,54 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
             ),
           ),
 
-          if (_isPlayerReady) ...[
+          if (_isPlayerReady)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 children: [
-                  AudioFileWaveforms(
-                    size: Size(MediaQuery.of(context).size.width, 80),
-                    playerController: _playerController,
-                    waveformType: WaveformType.fitWidth,
-                    playerWaveStyle: PlayerWaveStyle(
-                      fixedWaveColor: Colors.grey,
-                      liveWaveColor: _currentPlayingIndex >= 0
-                          ? Colors.yellow
-                          : Colors.blueAccent,
-                      seekLineColor: Colors.orange,
-                    ),
-                  ),
+                  _buildProgressBar(),
                   const SizedBox(height: 8),
-                  // Duration indicator
-                  FutureBuilder<int>(
-                    future: _playerController.getDuration(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const SizedBox();
-                      final duration = snapshot.data!;
-                      return StreamBuilder<int>(
-                        stream: _playerController.onCurrentDurationChanged,
-                        builder: (context, streamSnapshot) {
-                          final current = streamSnapshot.data ?? 0;
-                          return Text(
-                            '${(current / 1000).toStringAsFixed(1)}s / ${(duration / 1000).toStringAsFixed(1)}s',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          );
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          _playerController.playerState == PlayerState.playing
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                        ),
+                        onPressed: () async {
+                          if (_playerController.playerState ==
+                              PlayerState.playing) {
+                            await _playerController.pausePlayer();
+                            setState(() => _currentPlayingIndex = -1);
+                          } else {
+                            await _playerController.startPlayer();
+                          }
+                          setState(() {});
                         },
-                      );
-                    },
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _isDetecting ? null : _autoDetect,
+                        icon: _isDetecting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.auto_awesome),
+                        label: Text(
+                          _isDetecting ? 'Mendeteksi...' : 'Auto-Detect Spikes',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    _playerController.playerState == PlayerState.playing
-                        ? Icons.pause
-                        : Icons.play_arrow,
-                  ),
-                  onPressed: () async {
-                    if (_playerController.playerState == PlayerState.playing) {
-                      await _playerController.pausePlayer();
-                      setState(() => _currentPlayingIndex = -1);
-                    } else {
-                      await _playerController.startPlayer();
-                    }
-                    setState(() {});
-                  },
-                ),
-                ElevatedButton.icon(
-                  onPressed: _isDetecting ? null : _autoDetect,
-                  icon: _isDetecting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome),
-                  label: Text(
-                    _isDetecting ? 'Mendeteksi...' : 'Auto-Detect Spikes',
-                  ),
-                ),
-              ],
-            ),
-          ] else if (_isLoadingWaveform)
-            const LinearProgressIndicator(),
+          if (_isLoadingWaveform) const LinearProgressIndicator(),
 
           if (_detectedSpikesCount > 0 &&
               _detectedSpikesCount != _wordControllers.length)
