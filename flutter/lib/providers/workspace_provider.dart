@@ -56,6 +56,21 @@ class WorkspaceProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void addDeret() {
+    int maxSlot = _derets.isEmpty
+        ? 0
+        : _derets.map((d) => d.slotNumber).reduce((a, b) => a > b ? a : b);
+    final newDeret = Deret(slotNumber: maxSlot + 1);
+    _derets.add(newDeret);
+    _derets.sort((a, b) => a.slotNumber.compareTo(b.slotNumber));
+    notifyListeners();
+  }
+
+  void removeDeret(int slotNumber) {
+    _derets.removeWhere((d) => d.slotNumber == slotNumber);
+    notifyListeners();
+  }
+
   String buildBulkJson() {
     List<Map<String, dynamic>> payload = _derets
         .where((d) => d.isSynced && d.words.isNotEmpty)

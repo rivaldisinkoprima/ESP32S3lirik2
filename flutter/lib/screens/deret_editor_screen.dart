@@ -5,7 +5,7 @@
 // - Auto-Detect Spikes: Deteksi timing kata dari waveform
 // - Edit kata (maks 8 karakter) dan timestamp
 // - Preview: Play audio dari timestamp tertentu
-// - Visual: Waveform dengan progress dan active word highlight
+// - Visual: Progress bar dengan marker kata dan auto-scroll
 // - Simpan ke workspace
 //
 // Routes: Via Navigator.push dari HomeScreen
@@ -14,6 +14,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
@@ -25,12 +26,14 @@ import '../services/spike_detector.dart';
 class _ProgressPainter extends CustomPainter {
   final double progress;
   final List<int> wordTimestamps;
+  final List<String> wordLabels;
   final int totalDuration;
   final int activeIndex;
 
   _ProgressPainter({
     required this.progress,
     required this.wordTimestamps,
+    required this.wordLabels,
     required this.totalDuration,
     required this.activeIndex,
   });
@@ -64,10 +67,8 @@ class _ProgressPainter extends CustomPainter {
 
     final y = topPadding + (markerHeight - barHeight) / 2;
 
-    // Background bar
     canvas.drawLine(Offset(0, y), Offset(size.width, y), bgPaint);
 
-    // Progress bar
     if (progress > 0) {
       canvas.drawLine(
         Offset(0, y),
@@ -76,7 +77,6 @@ class _ProgressPainter extends CustomPainter {
       );
     }
 
-    // Word markers
     for (int i = 0; i < wordTimestamps.length; i++) {
       final ts = wordTimestamps[i];
       if (ts <= 0 || totalDuration <= 0) continue;
@@ -90,15 +90,14 @@ class _ProgressPainter extends CustomPainter {
         paint,
       );
 
-      // Draw word label
-      if (i < wordTimestamps.length) {
+      if (isActive && i < wordLabels.length && wordLabels[i].isNotEmpty) {
         final textPainter = TextPainter(
           text: TextSpan(
-            text: '${i + 1}',
-            style: TextStyle(
-              fontSize: 9,
-              color: isActive ? Colors.red : Colors.grey.shade600,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            text: wordLabels[i],
+            style: const TextStyle(
+              fontSize: 10,
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -114,7 +113,6 @@ class _ProgressPainter extends CustomPainter {
       }
     }
 
-    // Playhead triangle
     if (progress > 0 && progress < 1) {
       final playheadX = size.width * progress;
       final playheadPaint = Paint()
@@ -150,27 +148,30 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
   late Deret _editingDeret;
   bool _isPlayerReady = false;
   bool _isLoadingWaveform = false;
-  bool _isDetecting = false;
+  final bool _isDetecting = false;
   int _detectedSpikesCount = 0;
   int _currentPlayingIndex = -1;
   StreamSubscription? _durationSubscription;
+  final ScrollController _scrollController = ScrollController();
 
   final List<TextEditingController> _wordControllers = [];
+  final List<TextEditingController> _timestampControllers = [];
 
   @override
   void initState() {
     super.initState();
     _playerController = PlayerController();
 
-    // Copy deret data from provider
     final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
     _editingDeret = workspace.derets.firstWhere(
       (d) => d.slotNumber == widget.slotNumber,
     );
 
-    // Fill word controllers
     for (var w in _editingDeret.words) {
       _wordControllers.add(TextEditingController(text: w.word));
+      _timestampControllers.add(
+        TextEditingController(text: w.timestampMs.toString()),
+      );
     }
 
     if (_editingDeret.audioFilePath != null) {
@@ -187,14 +188,10 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         noOfSamples: 500,
       );
 
-      // Listen for player state changes
       _playerController.onPlayerStateChanged.listen((state) {
         setState(() {});
-        // If player stopped naturally, reset active index
         if (state == PlayerState.stopped) {
-          setState(() {
-            _currentPlayingIndex = -1;
-          });
+          setState(() => _currentPlayingIndex = -1);
         }
       });
 
@@ -214,9 +211,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     );
     if (result != null && result.files.single.path != null) {
       String path = result.files.single.path!;
-      setState(() {
-        _editingDeret.audioFilePath = path;
-      });
+      setState(() => _editingDeret.audioFilePath = path);
       _preparePlayer(path);
     }
   }
@@ -224,6 +219,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
   void _addWord() {
     setState(() {
       _wordControllers.add(TextEditingController());
+      _timestampControllers.add(TextEditingController(text: '0'));
       _editingDeret.words.add(WordEntry(timestampMs: 0, word: ""));
     });
   }
@@ -231,7 +227,9 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
   void _removeWord(int index) {
     setState(() {
       _wordControllers[index].dispose();
+      _timestampControllers[index].dispose();
       _wordControllers.removeAt(index);
+      _timestampControllers.removeAt(index);
       _editingDeret.words.removeAt(index);
     });
   }
@@ -240,7 +238,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     if (!_isPlayerReady) return;
     if (_editingDeret.audioFilePath == null) return;
 
-    // Step 1: Validate file format
     final path = _editingDeret.audioFilePath!;
     debugPrint('[AUTO_DETECT] === START ===');
     debugPrint('[AUTO_DETECT] Path: $path');
@@ -262,7 +259,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       return;
     }
 
-    // Step 2: Validate file exists and is readable
     final file = File(path);
     if (!await file.exists()) {
       debugPrint('[AUTO_DETECT] FAIL: File not found');
@@ -285,7 +281,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       return;
     }
 
-    // Show loading dialog with cancel button
     if (!mounted) return;
     var loadingMessage = 'Mempersiapkan...';
     showDialog(
@@ -316,7 +311,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     );
 
     try {
-      // Step 3: Get duration
       loadingMessage = 'Memproses...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 3: Getting duration...');
@@ -336,11 +330,9 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         throw Exception('Durasi audio tidak valid');
       }
 
-      // Step 4: Adaptive sampling
       final noOfSamples = _adaptiveSampleCount(duration);
       debugPrint('[AUTO_DETECT] Adaptive samples: $noOfSamples');
 
-      // Step 4b: Pre-check - try decode first 100 samples to validate file
       loadingMessage = 'Memvalidasi file audio...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 4b: Pre-check decoding...');
@@ -369,7 +361,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         );
       }
 
-      // Check if all samples are zero (decoder producing silence)
       final preCheckMax = preCheckData.reduce((a, b) => a > b ? a : b);
       final preCheckAvg =
           preCheckData.reduce((a, b) => a + b) / preCheckData.length;
@@ -386,7 +377,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         );
       }
 
-      // Step 5: Extract waveform data with timeout
       loadingMessage = 'Mengekstrak waveform ($noOfSamples samples)...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 5: Extracting waveform...');
@@ -416,7 +406,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         throw Exception('Waveform data kosong');
       }
 
-      // Log sample data for debugging
       final maxVal = data.reduce((a, b) => a > b ? a : b);
       final minVal = data.reduce((a, b) => a < b ? a : b);
       final avgVal = data.reduce((a, b) => a + b) / data.length;
@@ -425,7 +414,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       );
       debugPrint('[AUTO_DETECT] First 10 samples: ${data.take(10).join(', ')}');
 
-      // Step 6: Spike detection in isolate with timeout
       loadingMessage = 'Mendeteksi spike...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 6: Detecting spikes in isolate...');
@@ -450,7 +438,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         '[AUTO_DETECT] Spike times: ${detectedTimes.take(20).join(', ')}${detectedTimes.length > 20 ? '...' : ''}',
       );
 
-      // Step 7: Update state
       if (!mounted) return;
       debugPrint('[AUTO_DETECT] Step 7: Updating UI state...');
       setState(() {
@@ -458,11 +445,15 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         for (int i = 0; i < detectedTimes.length; i++) {
           if (i < _editingDeret.words.length) {
             _editingDeret.words[i].timestampMs = detectedTimes[i];
+            _timestampControllers[i].text = detectedTimes[i].toString();
           } else {
             _editingDeret.words.add(
               WordEntry(timestampMs: detectedTimes[i], word: "NEW"),
             );
             _wordControllers.add(TextEditingController(text: "NEW"));
+            _timestampControllers.add(
+              TextEditingController(text: detectedTimes[i].toString()),
+            );
           }
         }
         _editingDeret.isSynced = true;
@@ -521,47 +512,34 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
     final timestamp = _editingDeret.words[index].timestampMs;
 
-    // If already playing this word, pause it
     if (_currentPlayingIndex == index) {
       await _playerController.pausePlayer();
       await _durationSubscription?.cancel();
       _durationSubscription = null;
-      setState(() {
-        _currentPlayingIndex = -1;
-      });
+      setState(() => _currentPlayingIndex = -1);
       return;
     }
 
     try {
-      // Cancel old listener
       await _durationSubscription?.cancel();
       _durationSubscription = null;
 
       final state = _playerController.playerState;
 
       if (state == PlayerState.playing) {
-        // Already playing - just seek to new position
         await _playerController.seekTo(timestamp);
       } else if (state == PlayerState.paused) {
-        // Paused - resume then seek
         await _playerController.startPlayer();
-        // Small delay to let play resume before seeking
         await Future.delayed(const Duration(milliseconds: 50));
         await _playerController.seekTo(timestamp);
       } else {
-        // Stopped (initial state) - start playing then seek
         await _playerController.startPlayer();
-        // Give audio pipeline time to initialize
         await Future.delayed(const Duration(milliseconds: 100));
-        // Now seek to target position
         await _playerController.seekTo(timestamp);
       }
 
-      setState(() {
-        _currentPlayingIndex = index;
-      });
+      setState(() => _currentPlayingIndex = index);
 
-      // Listen for position updates to track current word
       _durationSubscription = _playerController.onCurrentDurationChanged.listen(
         (duration) {
           if (!mounted) return;
@@ -570,9 +548,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       );
     } catch (e) {
       debugPrint('Play error: $e');
-      setState(() {
-        _currentPlayingIndex = -1;
-      });
+      setState(() => _currentPlayingIndex = -1);
     }
   }
 
@@ -580,9 +556,6 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     if (!_isPlayerReady) return;
     if (_currentPlayingIndex < 0) return;
 
-    // Find the word that corresponds to current position
-    // The current playing word is the one with timestamp <= currentMs
-    // but next word's timestamp hasn't been reached yet
     int newIndex = -1;
     for (int i = 0; i < _editingDeret.words.length; i++) {
       if (currentMs >= _editingDeret.words[i].timestampMs) {
@@ -590,23 +563,34 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       }
     }
 
-    // Also check if we've passed the next word's timestamp - if so, we're done with current
     if (newIndex != _currentPlayingIndex) {
-      setState(() {
-        _currentPlayingIndex = newIndex;
-      });
+      setState(() => _currentPlayingIndex = newIndex);
+      _scrollToActiveWord(newIndex);
     }
 
-    // Check if playback stopped
     if (_playerController.playerState != PlayerState.playing &&
         _currentPlayingIndex >= 0) {
-      // Check if we've reached the end by comparing with last word timestamp + some buffer
       if (_editingDeret.words.isNotEmpty &&
           currentMs >= _editingDeret.words.last.timestampMs + 500) {
-        setState(() {
-          _currentPlayingIndex = -1;
-        });
+        setState(() => _currentPlayingIndex = -1);
       }
+    }
+  }
+
+  void _scrollToActiveWord(int index) {
+    if (!_scrollController.hasClients) return;
+    final itemHeight = 56.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = index * itemHeight;
+    final currentOffset = _scrollController.offset;
+
+    if (targetOffset < currentOffset ||
+        targetOffset > currentOffset + viewportHeight - itemHeight) {
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -629,6 +613,10 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                 ? currentMs / totalDuration
                 : 0.0;
 
+            final wordLabels = _editingDeret.words
+                .map((w) => w.word.isNotEmpty ? w.word : '${w.timestampMs}ms')
+                .toList();
+
             return Column(
               children: [
                 GestureDetector(
@@ -642,14 +630,15 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                     _seekToPosition(seekMs);
                   },
                   child: SizedBox(
-                    height: 60,
+                    height: 40,
                     child: CustomPaint(
-                      size: Size(double.infinity, 60),
+                      size: Size(double.infinity, 40),
                       painter: _ProgressPainter(
                         progress: progress,
                         wordTimestamps: _editingDeret.words
                             .map((w) => w.timestampMs)
                             .toList(),
+                        wordLabels: wordLabels,
                         totalDuration: totalDuration,
                         activeIndex: _currentPlayingIndex,
                       ),
@@ -692,20 +681,64 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       String val = _wordControllers[i].text.toUpperCase();
       if (val.length > 8) val = val.substring(0, 8);
       _editingDeret.words[i].word = val;
+
+      final tsText = _timestampControllers[i].text;
+      final ts = int.tryParse(tsText);
+      if (ts != null) {
+        _editingDeret.words[i].timestampMs = ts;
+      }
     }
 
     Provider.of<WorkspaceProvider>(
       context,
       listen: false,
     ).updateDeret(_editingDeret);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Deret ${widget.slotNumber} berhasil disimpan'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
     Navigator.pop(context);
+  }
+
+  void _addMissingWords() {
+    final missing = _detectedSpikesCount - _wordControllers.length;
+    if (missing <= 0) return;
+    setState(() {
+      for (int i = 0; i < missing; i++) {
+        _wordControllers.add(TextEditingController());
+        _timestampControllers.add(TextEditingController(text: '0'));
+        _editingDeret.words.add(WordEntry(timestampMs: 0, word: ""));
+      }
+    });
+  }
+
+  void _removeExtraWords() {
+    final extra = _wordControllers.length - _detectedSpikesCount;
+    if (extra <= 0) return;
+    setState(() {
+      for (int i = 0; i < extra; i++) {
+        final idx = _wordControllers.length - 1;
+        _wordControllers[idx].dispose();
+        _timestampControllers[idx].dispose();
+        _wordControllers.removeAt(idx);
+        _timestampControllers.removeAt(idx);
+        _editingDeret.words.removeAt(idx);
+      }
+    });
   }
 
   @override
   void dispose() {
     _durationSubscription?.cancel();
     _playerController.dispose();
+    _scrollController.dispose();
     for (var controller in _wordControllers) {
+      controller.dispose();
+    }
+    for (var controller in _timestampControllers) {
       controller.dispose();
     }
     super.dispose();
@@ -713,214 +746,277 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Edit Deret ${widget.slotNumber}'),
-        actions: [IconButton(icon: const Icon(Icons.check), onPressed: _save)],
-      ),
-      body: Column(
-        children: [
-          // Audio Section
-          Container(
-            width: double.infinity,
-            color: Colors.blue.shade800,
-            padding: const EdgeInsets.all(12),
-            child: const Text(
-              'PILIH AUDIO',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Edit Deret ${widget.slotNumber}'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _save,
+              tooltip: 'Simpan',
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _editingDeret.audioFilePath?.split('/').last ??
-                        'Pilih file audio...',
-                    style: const TextStyle(fontStyle: FontStyle.italic),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _pickAudioFile,
-                  icon: const Icon(Icons.audio_file),
-                  label: const Text('Open'),
-                ),
-              ],
-            ),
-          ),
-
-          if (_isPlayerReady)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                children: [
-                  _buildProgressBar(),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          _playerController.playerState == PlayerState.playing
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                        ),
-                        onPressed: () async {
-                          if (_playerController.playerState ==
-                              PlayerState.playing) {
-                            await _playerController.pausePlayer();
-                            setState(() => _currentPlayingIndex = -1);
-                          } else {
-                            await _playerController.startPlayer();
-                          }
-                          setState(() {});
-                        },
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _isDetecting ? null : _autoDetect,
-                        icon: _isDetecting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.auto_awesome),
-                        label: Text(
-                          _isDetecting ? 'Mendeteksi...' : 'Memproses...',
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          if (_isLoadingWaveform) const LinearProgressIndicator(),
-
-          if (_detectedSpikesCount > 0 &&
-              _detectedSpikesCount != _wordControllers.length)
+          ],
+        ),
+        body: Column(
+          children: [
             Container(
               width: double.infinity,
-              color: Colors.orange.shade100,
-              padding: const EdgeInsets.all(8.0),
+              color: Colors.blue.shade800,
+              padding: const EdgeInsets.all(12),
+              child: const Text(
+                'PILIH AUDIO',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber, color: Colors.orange),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Peringatan: Spike ($_detectedSpikesCount) != Kata (${_wordControllers.length})',
-                      style: const TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      _editingDeret.audioFilePath?.split('/').last ??
+                          'Pilih file audio...',
+                      style: const TextStyle(fontStyle: FontStyle.italic),
                     ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _pickAudioFile,
+                    icon: const Icon(Icons.audio_file),
+                    label: const Text('Open'),
                   ),
                 ],
               ),
             ),
 
-          const Divider(),
-          // Word List Section
-          Container(
-            width: double.infinity,
-            color: Colors.blue.shade800,
-            padding: const EdgeInsets.all(12),
-            child: const Text(
-              'DAFTAR KATA',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _wordControllers.length,
-              itemBuilder: (context, index) {
-                final isActive = _currentPlayingIndex == index;
-                return Container(
-                  color: isActive ? Colors.yellow.withAlpha(77) : null,
-                  child: ListTile(
-                    leading: Text('${index + 1}°'),
-                    title: Row(
+            if (_isPlayerReady)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  children: [
+                    _buildProgressBar(),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SizedBox(
-                          width: 80,
-                          child: Text(
-                            '${_editingDeret.words[index].timestampMs}ms',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isActive ? Colors.orange : Colors.blueGrey,
-                              fontWeight: isActive
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _wordControllers[index],
-                            decoration: const InputDecoration(
-                              hintText: 'MAKS-8',
-                            ),
-                            maxLength: 8,
-                            textCapitalization: TextCapitalization.characters,
-                          ),
-                        ),
                         IconButton(
                           icon: Icon(
-                            isActive
-                                ? Icons.pause_circle
-                                : Icons.play_circle_outline,
-                            color: isActive ? Colors.orange : Colors.green,
-                            size: 28,
+                            _playerController.playerState == PlayerState.playing
+                                ? Icons.pause
+                                : Icons.play_arrow,
                           ),
                           onPressed: () async {
-                            if (isActive) {
-                              // Pause playback
+                            if (_playerController.playerState ==
+                                PlayerState.playing) {
                               await _playerController.pausePlayer();
-                              await _durationSubscription?.cancel();
-                              _durationSubscription = null;
-                              setState(() {
-                                _currentPlayingIndex = -1;
-                              });
+                              setState(() => _currentPlayingIndex = -1);
                             } else {
-                              // Play from this word's timestamp
-                              await _playFromWord(index);
+                              await _playerController.startPlayer();
                             }
+                            setState(() {});
                           },
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.remove_circle_outline,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () => _removeWord(index),
+                        ElevatedButton.icon(
+                          onPressed: _isDetecting ? null : _autoDetect,
+                          icon: _isDetecting
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome),
+                          label: const Text('Auto-Detect Spikes'),
                         ),
                       ],
                     ),
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
+            if (_isLoadingWaveform) const LinearProgressIndicator(),
+
+            if (_detectedSpikesCount > 0 &&
+                _detectedSpikesCount != _wordControllers.length)
+              Container(
+                width: double.infinity,
+                color: Colors.orange.shade100,
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.warning_amber, color: Colors.orange),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Spike ($_detectedSpikesCount) != Kata (${_wordControllers.length})',
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        if (_detectedSpikesCount > _wordControllers.length)
+                          ElevatedButton.icon(
+                            onPressed: _addMissingWords,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Tambah kata'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                            ),
+                          ),
+                        if (_wordControllers.length > _detectedSpikesCount)
+                          ElevatedButton.icon(
+                            onPressed: _removeExtraWords,
+                            icon: const Icon(Icons.remove, size: 16),
+                            label: const Text('Hapus kelebihan'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+            const Divider(),
+            Container(
+              width: double.infinity,
+              color: Colors.blue.shade800,
+              padding: const EdgeInsets.all(12),
+              child: const Text(
+                'DAFTAR KATA',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton.icon(
-              onPressed: _addWord,
-              icon: const Icon(Icons.add),
-              label: const Text('Tambah Kata'),
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: _wordControllers.length,
+                itemBuilder: (context, index) {
+                  final isActive = _currentPlayingIndex == index;
+                  return Container(
+                    color: isActive ? Colors.yellow.withAlpha(77) : null,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 2,
+                      ),
+                      leading: Text('${index + 1}°'),
+                      title: Row(
+                        children: [
+                          SizedBox(
+                            width: 70,
+                            child: TextField(
+                              controller: _timestampControllers[index],
+                              decoration: const InputDecoration(
+                                hintText: 'ms',
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 8,
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isActive
+                                    ? Colors.orange
+                                    : Colors.blueGrey,
+                                fontWeight: isActive
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: TextField(
+                              controller: _wordControllers[index],
+                              decoration: const InputDecoration(
+                                hintText: 'MAKS-8',
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 8,
+                                ),
+                              ),
+                              maxLength: 8,
+                              textCapitalization: TextCapitalization.characters,
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              isActive
+                                  ? Icons.pause_circle
+                                  : Icons.play_circle_outline,
+                              color: isActive ? Colors.orange : Colors.green,
+                              size: 28,
+                            ),
+                            onPressed: () async {
+                              if (isActive) {
+                                await _playerController.pausePlayer();
+                                await _durationSubscription?.cancel();
+                                _durationSubscription = null;
+                                setState(() => _currentPlayingIndex = -1);
+                              } else {
+                                await _playFromWord(index);
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () => _removeWord(index),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: _addWord,
+                icon: const Icon(Icons.add),
+                label: const Text('Tambah Kata'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

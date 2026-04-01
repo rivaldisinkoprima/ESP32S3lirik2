@@ -43,10 +43,10 @@ class LirikSyncApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Lirik Sync V2',
       theme: ThemeData(
-        brightness: Brightness.dark,
+        brightness: Brightness.light,
         primarySwatch: Colors.blue,
         useMaterial3: true,
-        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       ),
       initialRoute: '/',
