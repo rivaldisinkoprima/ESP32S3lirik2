@@ -11,7 +11,9 @@
 // Routes: Via Navigator.push dari HomeScreen
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
@@ -236,24 +238,221 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
   Future<void> _autoDetect() async {
     if (!_isPlayerReady) return;
+    if (_editingDeret.audioFilePath == null) return;
 
-    setState(() => _isDetecting = true);
+    // Step 1: Validate file format
+    final path = _editingDeret.audioFilePath!;
+    debugPrint('[AUTO_DETECT] === START ===');
+    debugPrint('[AUTO_DETECT] Path: $path');
+
+    final extension = path.split('.').last.toLowerCase();
+    debugPrint('[AUTO_DETECT] Extension: $extension');
+
+    const supportedFormats = ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'flac', 'wma'];
+    if (!supportedFormats.contains(extension)) {
+      debugPrint('[AUTO_DETECT] FAIL: Unsupported format');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Format .$extension tidak didukung. Gunakan: ${supportedFormats.join(', ')}',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Step 2: Validate file exists and is readable
+    final file = File(path);
+    if (!await file.exists()) {
+      debugPrint('[AUTO_DETECT] FAIL: File not found');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File audio tidak ditemukan')),
+      );
+      return;
+    }
+
+    final fileSize = await file.length();
+    debugPrint('[AUTO_DETECT] File size: ${fileSize ~/ 1024} KB');
+
+    if (fileSize > 100 * 1024 * 1024) {
+      debugPrint('[AUTO_DETECT] FAIL: File too large');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File terlalu besar (maks 100MB)')),
+      );
+      return;
+    }
+
+    // Show loading dialog with cancel button
+    if (!mounted) return;
+    var loadingMessage = 'Mempersiapkan...';
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => Center(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(loadingMessage),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Batal'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
 
     try {
-      // Get waveform data from player
+      // Step 3: Get duration
+      loadingMessage = 'Memproses...';
+      if (mounted) setState(() {});
+      debugPrint('[AUTO_DETECT] Step 3: Getting duration...');
+
+      final sw = Stopwatch()..start();
+      final duration = await _playerController.getDuration().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Timeout membaca durasi'),
+      );
+      sw.stop();
+      debugPrint(
+        '[AUTO_DETECT] Duration: ${duration}ms (${sw.elapsedMilliseconds}ms)',
+      );
+
+      if (duration <= 0) {
+        debugPrint('[AUTO_DETECT] FAIL: Invalid duration');
+        throw Exception('Durasi audio tidak valid');
+      }
+
+      // Step 4: Adaptive sampling
+      final noOfSamples = _adaptiveSampleCount(duration);
+      debugPrint('[AUTO_DETECT] Adaptive samples: $noOfSamples');
+
+      // Step 4b: Pre-check - try decode first 100 samples to validate file
+      loadingMessage = 'Memvalidasi file audio...';
+      if (mounted) setState(() {});
+      debugPrint('[AUTO_DETECT] Step 4b: Pre-check decoding...');
+
+      final preCheckExtractor = WaveformExtractionController();
+      List<double> preCheckData;
+      try {
+        preCheckData = await preCheckExtractor
+            .extractWaveformData(path: path, noOfSamples: 100)
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () =>
+                  throw TimeoutException('Timeout validasi file (10 detik)'),
+            );
+      } catch (e) {
+        debugPrint('[AUTO_DETECT] FAIL: Pre-check extraction error - $e');
+        throw Exception(
+          'Gagal membaca file audio. Pastikan file tidak corrupt dan format didukung.',
+        );
+      }
+
+      if (preCheckData.isEmpty) {
+        debugPrint('[AUTO_DETECT] FAIL: Pre-check returned empty data');
+        throw Exception(
+          'File audio tidak bisa di-decode. Coba convert ke WAV atau MP3 standar 128kbps CBR.',
+        );
+      }
+
+      // Check if all samples are zero (decoder producing silence)
+      final preCheckMax = preCheckData.reduce((a, b) => a > b ? a : b);
+      final preCheckAvg =
+          preCheckData.reduce((a, b) => a + b) / preCheckData.length;
+      debugPrint(
+        '[AUTO_DETECT] Pre-check: max=$preCheckMax, avg=${preCheckAvg.toStringAsFixed(4)}',
+      );
+
+      if (preCheckMax < 0.001 && preCheckAvg.abs() < 0.001) {
+        debugPrint('[AUTO_DETECT] FAIL: All samples are zero - decoder issue');
+        throw Exception(
+          'File audio tidak kompatibel dengan decoder Android. '
+          'Kemungkinan: VBR, corrupt, atau format tidak standar. '
+          'Solusi: Convert ke WAV atau MP3 128kbps CBR.',
+        );
+      }
+
+      // Step 5: Extract waveform data with timeout
+      loadingMessage = 'Mengekstrak waveform ($noOfSamples samples)...';
+      if (mounted) setState(() {});
+      debugPrint('[AUTO_DETECT] Step 5: Extracting waveform...');
+
       final extractor = WaveformExtractionController();
-      final data = await extractor.extractWaveformData(
-        path: _editingDeret.audioFilePath!,
-        noOfSamples: 5000,
+      List<double> data;
+      final extractSw = Stopwatch()..start();
+      try {
+        data = await extractor
+            .extractWaveformData(path: path, noOfSamples: noOfSamples)
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException(
+                'Timeout ekstraksi waveform (30 detik)',
+              ),
+            );
+        extractSw.stop();
+        debugPrint(
+          '[AUTO_DETECT] Extracted ${data.length} samples in ${extractSw.elapsedMilliseconds}ms',
+        );
+      } finally {
+        // Extractor is short-lived, no dispose method available
+      }
+
+      if (data.isEmpty) {
+        debugPrint('[AUTO_DETECT] FAIL: Empty waveform data');
+        throw Exception('Waveform data kosong');
+      }
+
+      // Log sample data for debugging
+      final maxVal = data.reduce((a, b) => a > b ? a : b);
+      final minVal = data.reduce((a, b) => a < b ? a : b);
+      final avgVal = data.reduce((a, b) => a + b) / data.length;
+      debugPrint(
+        '[AUTO_DETECT] Data stats: min=$minVal, max=$maxVal, avg=${avgVal.toStringAsFixed(4)}',
+      );
+      debugPrint('[AUTO_DETECT] First 10 samples: ${data.take(10).join(', ')}');
+
+      // Step 6: Spike detection in isolate with timeout
+      loadingMessage = 'Mendeteksi spike...';
+      if (mounted) setState(() {});
+      debugPrint('[AUTO_DETECT] Step 6: Detecting spikes in isolate...');
+
+      final detectSw = Stopwatch()..start();
+      final detectedTimes =
+          await compute(_detectSpikesIsolate, {
+            'waveformData': data,
+            'totalDurationMs': duration,
+            'minGapMs': 600,
+            'threshold': 0.015,
+          }).timeout(
+            const Duration(seconds: 15),
+            onTimeout: () =>
+                throw TimeoutException('Timeout deteksi spike (15 detik)'),
+          );
+      detectSw.stop();
+      debugPrint(
+        '[AUTO_DETECT] Detected ${detectedTimes.length} spikes in ${detectSw.elapsedMilliseconds}ms',
+      );
+      debugPrint(
+        '[AUTO_DETECT] Spike times: ${detectedTimes.take(20).join(', ')}${detectedTimes.length > 20 ? '...' : ''}',
       );
 
-      int duration = await _playerController.getDuration();
-      final detectedTimes = SpikeDetector.detect(
-        waveformData: data,
-        totalDurationMs: duration,
-        minGapMs: 600,
-      );
-
+      // Step 7: Update state
+      if (!mounted) return;
+      debugPrint('[AUTO_DETECT] Step 7: Updating UI state...');
       setState(() {
         _detectedSpikesCount = detectedTimes.length;
         for (int i = 0; i < detectedTimes.length; i++) {
@@ -268,7 +467,26 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         }
         _editingDeret.isSynced = true;
       });
-    } catch (e) {
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Berhasil mendeteksi ${detectedTimes.length} spike'),
+          ),
+        );
+      }
+      debugPrint('[AUTO_DETECT] === SUCCESS ===');
+    } on TimeoutException catch (e, stackTrace) {
+      debugPrint('[AUTO_DETECT] FAIL: Timeout - $e');
+      debugPrint('[AUTO_DETECT] Stack trace: $stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Proses terlalu lama: $e')));
+      }
+    } catch (e, stackTrace) {
+      debugPrint('[AUTO_DETECT] FAIL: $e');
+      debugPrint('[AUTO_DETECT] Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -276,9 +494,25 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isDetecting = false);
+        Navigator.of(context).pop();
       }
     }
+  }
+
+  int _adaptiveSampleCount(int durationMs) {
+    if (durationMs < 30000) return 3000;
+    if (durationMs < 120000) return 2000;
+    if (durationMs < 300000) return 1000;
+    return 500;
+  }
+
+  static List<int> _detectSpikesIsolate(Map<String, dynamic> params) {
+    return SpikeDetector.detect(
+      waveformData: List<double>.from(params['waveformData'] as List),
+      totalDurationMs: params['totalDurationMs'] as int,
+      minGapMs: params['minGapMs'] as int,
+      threshold: (params['threshold'] as num).toDouble(),
+    );
   }
 
   Future<void> _playFromWord(int index) async {
@@ -559,7 +793,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                               )
                             : const Icon(Icons.auto_awesome),
                         label: Text(
-                          _isDetecting ? 'Mendeteksi...' : 'Auto-Detect Spikes',
+                          _isDetecting ? 'Mendeteksi...' : 'Memproses...',
                         ),
                       ),
                     ],
