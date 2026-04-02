@@ -14,7 +14,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'providers/workspace_provider.dart';
 import 'providers/ble_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/locale_provider.dart';
 import 'screens/main_shell.dart';
+import 'l10n/app_localizations.dart';
 
 void main() {
   runApp(
@@ -23,6 +25,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => WorkspaceProvider()),
         ChangeNotifierProvider(create: (_) => BleProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],
       child: const LirikSyncApp(),
     ),
@@ -38,7 +41,7 @@ class LirikSyncApp extends StatefulWidget {
 
 class _LirikSyncAppState extends State<LirikSyncApp> {
   bool _initialized = false;
-  String _initStatus = 'Checking Bluetooth...';
+  String _initStatus = 'checkBluetooth';
   List<String> _permissionStatus = [];
 
   @override
@@ -49,17 +52,17 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
 
   Future<void> _initialize() async {
     try {
-      setState(() => _initStatus = 'Checking Bluetooth...');
+      setState(() => _initStatus = 'checkBluetooth');
       final btAdapterState = await FlutterBluePlus.adapterState.first;
       final btOn = btAdapterState == BluetoothAdapterState.on;
       _permissionStatus.add('Bluetooth: ${btOn ? "ON" : "OFF"}');
 
       // Tidak perlu check akses penyimpanan otomatis
-      _permissionStatus.add('Penyimpanan: Akan dicek saat import');
+      _permissionStatus.add('storageInfo');
 
       setState(() {
         _initialized = true;
-        _initStatus = 'Selesai';
+        _initStatus = 'done';
       });
 
       if (!btOn && mounted) {
@@ -79,15 +82,15 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.bluetooth_disabled, color: Colors.red),
-            SizedBox(width: 8),
-            Expanded(child: Text('Bluetooth Off')),
+            const Icon(Icons.bluetooth_disabled, color: Colors.red),
+            const SizedBox(width: 8),
+            Expanded(child: Text(AppLocalizations.of(ctx)?.translate('bluetoothOff') ?? 'Bluetooth Off')),
           ],
         ),
-        content: const Text(
-          'Bluetooth needs to be turned on to sync with ESP32 device.',
+        content: Text(
+          AppLocalizations.of(ctx)?.translate('bluetoothNeeded') ?? 'Bluetooth needs to be turned on to sync with ESP32 device.',
         ),
         actions: [
           TextButton(
@@ -97,11 +100,11 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
               } catch (e) {}
               Navigator.of(ctx).pop();
             },
-            child: const Text('Turn On'),
+            child: Text(AppLocalizations.of(ctx)?.translate('turnOn') ?? 'Turn On'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Later'),
+            child: Text(AppLocalizations.of(ctx)?.translate('later') ?? 'Later'),
           ),
         ],
       ),
@@ -111,10 +114,22 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final localeProvider = Provider.of<LocaleProvider>(context);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Lirik Sync V2',
+      locale: localeProvider.locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localeResolutionCallback: (locale, supportedLocales) {
+        for (var supportedLocale in supportedLocales) {
+          if (supportedLocale.languageCode == locale?.languageCode) {
+            return supportedLocale;
+          }
+        }
+        return supportedLocales.first;
+      },
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         brightness: Brightness.light,
@@ -134,7 +149,7 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
       onGenerateRoute: (settings) {
         return MaterialPageRoute(
           builder: (_) => _initialized
-              ? const MainShell()
+              ? MainShell(key: ValueKey(localeProvider.locale.languageCode))
               : PermissionGateScreen(
                   status: _initStatus,
                   permissions: _permissionStatus,
@@ -171,25 +186,25 @@ class PermissionGateScreen extends StatelessWidget {
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(height: 24),
-                const Text(
-                  'Memuat Aplikasi...',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  AppLocalizations.of(context)?.translate('loadingApp') ?? 'Loading Application...',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(status, style: const TextStyle(color: Colors.grey)),
+                Text(AppLocalizations.of(context)?.translate(status) ?? status, style: const TextStyle(color: Colors.grey)),
                 if (permissions.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Status Sistem:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    AppLocalizations.of(context)?.translate('systemStatus') ?? 'System Status:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   ...permissions.map(
                     (p) => Padding(
                       padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(p, style: const TextStyle(fontSize: 12)),
+                      child: Text(AppLocalizations.of(context)?.translate(p) ?? p, style: const TextStyle(fontSize: 12)),
                     ),
                   ),
                 ],

@@ -16,6 +16,7 @@ import '../models/deret.dart';
 import '../models/word_entry.dart';
 import '../providers/workspace_provider.dart';
 import '../services/spike_detector.dart';
+import '../l10n/app_localizations.dart';
 
 class _ProgressPainter extends CustomPainter {
   final double progress;
@@ -146,6 +147,8 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
   int _detectedSpikesCount = 0;
   int _currentPlayingIndex = -1;
   StreamSubscription? _durationSubscription;
+
+  AppLocalizations? get _l10n => AppLocalizations.of(context);
   final ScrollController _scrollController = ScrollController();
 
   final List<TextEditingController> _wordControllers = [];
@@ -246,7 +249,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Format .$extension tidak didukung. Gunakan: ${supportedFormats.join(', ')}',
+            _l10n?.translate('formatNotSupported', [extension, supportedFormats.join(', ')]) ?? 'Format .$extension tidak didukung. Gunakan: ${supportedFormats.join(', ')}',
           ),
         ),
       );
@@ -258,7 +261,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       debugPrint('[AUTO_DETECT] FAIL: File not found');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File audio tidak ditemukan')),
+        SnackBar(content: Text(_l10n?.translate('audioFileNotFound') ?? 'File audio tidak ditemukan')),
       );
       return;
     }
@@ -270,13 +273,13 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       debugPrint('[AUTO_DETECT] FAIL: File too large');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File terlalu besar (maks 100MB)')),
+        SnackBar(content: Text(_l10n?.translate('fileTooLarge') ?? 'File terlalu besar (maks 100MB)')),
       );
       return;
     }
 
     if (!mounted) return;
-    var loadingMessage = 'Mempersiapkan...';
+    var loadingMessage = _l10n?.translate('preparing') ?? 'Mempersiapkan...';
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -294,7 +297,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(_l10n?.translate('cancel') ?? 'Cancel'),
                   ),
                 ],
               ),
@@ -305,14 +308,14 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     );
 
     try {
-      loadingMessage = 'Processing...';
+      loadingMessage = _l10n?.translate('processing') ?? 'Processing...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 3: Getting duration...');
 
       final sw = Stopwatch()..start();
       final duration = await _playerController.getDuration().timeout(
         const Duration(seconds: 10),
-        onTimeout: () => throw TimeoutException('Timeout membaca durasi'),
+        onTimeout: () => throw TimeoutException(_l10n?.translate('timeoutDuration') ?? 'Timeout membaca durasi'),
       );
       sw.stop();
       debugPrint(
@@ -321,13 +324,13 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
       if (duration <= 0) {
         debugPrint('[AUTO_DETECT] FAIL: Invalid duration');
-        throw Exception('Durasi audio tidak valid');
+        throw Exception(_l10n?.translate('invalidDuration') ?? 'Durasi audio tidak valid');
       }
 
       final noOfSamples = _adaptiveSampleCount(duration);
       debugPrint('[AUTO_DETECT] Adaptive samples: $noOfSamples');
 
-      loadingMessage = 'Memvalidasi file audio...';
+      loadingMessage = _l10n?.translate('validatingAudio') ?? 'Memvalidasi file audio...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 4b: Pre-check decoding...');
 
@@ -339,19 +342,19 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
             .timeout(
               const Duration(seconds: 30),
               onTimeout: () =>
-                  throw TimeoutException('Timeout validasi file (10 detik)'),
+                  throw TimeoutException(_l10n?.translate('timeoutValidation') ?? 'Timeout validasi file (10 detik)'),
             );
       } catch (e) {
         debugPrint('[AUTO_DETECT] FAIL: Pre-check extraction error - $e');
         throw Exception(
-          'Gagal membaca file audio. Pastikan file tidak corrupt dan format didukung.',
+          _l10n?.translate('failedReadAudio') ?? 'Gagal membaca file audio. Pastikan file tidak corrupt dan format didukung.',
         );
       }
 
       if (preCheckData.isEmpty) {
         debugPrint('[AUTO_DETECT] FAIL: Pre-check returned empty data');
         throw Exception(
-          'File audio tidak bisa di-decode. Coba convert ke WAV atau MP3 standar 128kbps CBR.',
+          _l10n?.translate('cannotDecodeAudio') ?? 'File audio tidak bisa di-decode. Coba convert ke WAV atau MP3 standar 128kbps CBR.',
         );
       }
 
@@ -365,13 +368,13 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       if (preCheckMax < 0.001 && preCheckAvg.abs() < 0.001) {
         debugPrint('[AUTO_DETECT] FAIL: All samples are zero - decoder issue');
         throw Exception(
-          'File audio tidak kompatibel dengan decoder Android. '
+          _l10n?.translate('decoderIssueAndroid') ?? 'File audio tidak kompatibel dengan decoder Android. '
           'Kemungkinan: VBR, corrupt, atau format tidak standar. '
           'Solusi: Convert ke WAV atau MP3 128kbps CBR.',
         );
       }
 
-      loadingMessage = 'Mengekstrak waveform ($noOfSamples samples)...';
+      loadingMessage = _l10n?.translate('extractingWaveform', ['$noOfSamples']) ?? 'Mengekstrak waveform ($noOfSamples samples)...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 5: Extracting waveform...');
 
@@ -408,7 +411,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       );
       debugPrint('[AUTO_DETECT] First 10 samples: ${data.take(10).join(', ')}');
 
-      loadingMessage = 'Mendeteksi spike...';
+      loadingMessage = _l10n?.translate('detectingSpikes') ?? 'Mendeteksi spike...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 6: Detecting spikes in isolate...');
 
@@ -442,9 +445,9 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
             _timestampControllers[i].text = detectedTimes[i].toString();
           } else {
             _editingDeret.words.add(
-              WordEntry(timestampMs: detectedTimes[i], word: "NEW"),
+              WordEntry(timestampMs: detectedTimes[i], word: _l10n?.translate('newWordDefault') ?? "NEW"),
             );
-            _wordControllers.add(TextEditingController(text: "NEW"));
+            _wordControllers.add(TextEditingController(text: _l10n?.translate('newWordDefault') ?? "NEW"));
             _timestampControllers.add(
               TextEditingController(text: detectedTimes[i].toString()),
             );
@@ -456,7 +459,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Berhasil mendeteksi ${detectedTimes.length} spike'),
+            content: Text(_l10n?.translate('spikesDetectedDetail', ['${detectedTimes.length}']) ?? 'Berhasil mendeteksi ${detectedTimes.length} spike'),
           ),
         );
       }
@@ -467,7 +470,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Proses terlalu lama: $e')));
+        ).showSnackBar(SnackBar(content: Text(_l10n?.translate('processTooLong', [e.toString()]) ?? 'Process took too long: $e')));
       }
     } catch (e, stackTrace) {
       debugPrint('[AUTO_DETECT] FAIL: $e');
@@ -475,7 +478,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text(_l10n?.translate('error', [e.toString()]) ?? 'Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -698,7 +701,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Track ${widget.slotNumber} saved successfully'),
+        content: Text(_l10n?.translate('savedSuccessfully', ['${widget.slotNumber}']) ?? 'Track ${widget.slotNumber} saved successfully'),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -750,7 +753,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'File does not contain data for "$deretKey". '
+              _l10n?.translate('jsonMissingData', [deretKey]) ?? 'File does not contain data for "$deretKey". '
               'Ensure format: {"track_${widget.slotNumber}": ["WORD1", "WORD2", ...]}',
             ),
           ),
@@ -785,7 +788,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${words.length} words imported to Track ${widget.slotNumber}',
+              _l10n?.translate('wordsImportedToTrack', ['${words.length}', '${widget.slotNumber}']) ?? '${words.length} words imported to Track ${widget.slotNumber}',
             ),
           ),
         );
@@ -827,20 +830,20 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
           final shouldPop = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Discard Changes?'),
-              content: const Text(
-                'You have unsaved changes. Are you sure you want to go back?',
+              title: Text(_l10n?.translate('discardChanges') ?? 'Discard Changes?'),
+              content: Text(
+                _l10n?.translate('unsavedChanges') ?? 'You have unsaved changes. Are you sure you want to go back?',
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
+                  child: Text(_l10n?.translate('cancel') ?? 'Cancel'),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text(
-                    'Discard',
-                    style: TextStyle(color: Colors.red),
+                  child: Text(
+                    _l10n?.translate('discard') ?? 'Discard',
+                    style: const TextStyle(color: Colors.red),
                   ),
                 ),
               ],
@@ -852,12 +855,12 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
-            title: Text('Edit Track ${widget.slotNumber}'),
+            title: Text(_l10n?.translate('editTrack', ['${widget.slotNumber}']) ?? 'Edit Track ${widget.slotNumber}'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.check),
                 onPressed: _save,
-                tooltip: 'Save',
+                tooltip: _l10n?.translate('save') ?? 'Save',
               ),
             ],
           ),
@@ -867,9 +870,9 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                 width: double.infinity,
                 color: Colors.blue.shade800,
                 padding: const EdgeInsets.all(12),
-                child: const Text(
-                  'SELECT AUDIO',
-                  style: TextStyle(
+                child: Text(
+                  _l10n?.translate('selectAudio') ?? 'SELECT AUDIO',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
@@ -885,14 +888,14 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                         Expanded(
                           child: Text(
                             _editingDeret.audioFilePath?.split('/').last ??
-                                'Pilih file audio...',
+                                (_l10n?.translate('selectAudioFile') ?? 'Select audio file...'),
                             style: const TextStyle(fontStyle: FontStyle.italic),
                           ),
                         ),
                         ElevatedButton.icon(
                           onPressed: _pickAudioFile,
                           icon: const Icon(Icons.audio_file),
-                          label: const Text('Open'),
+                          label: Text(_l10n?.translate('open') ?? 'Open'),
                         ),
                       ],
                     ),
@@ -901,7 +904,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Track ${widget.slotNumber}: Import lyrics from JSON file',
+                            _l10n?.translate('importLyricsDesc', ['${widget.slotNumber}']) ?? 'Track ${widget.slotNumber}: Import lyrics from JSON file',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -911,7 +914,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                         ElevatedButton.icon(
                           onPressed: _importWordsFromJson,
                           icon: const Icon(Icons.file_upload, size: 18),
-                          label: const Text('Import'),
+                          label: Text(_l10n?.translate('import') ?? 'Import'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -964,7 +967,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                                     ),
                                   )
                                 : const Icon(Icons.auto_awesome),
-                            label: const Text('Detect Words'),
+                            label: Text(_l10n?.translate('detectWords') ?? 'Detect Words'),
                           ),
                         ],
                       ),
@@ -1000,7 +1003,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Spike ($_detectedSpikesCount) != Kata (${_wordControllers.length})',
+                              _l10n?.translate('spikeWordMismatch', ['$_detectedSpikesCount', '${_wordControllers.length}']) ?? 'Spike ($_detectedSpikesCount) != Words (${_wordControllers.length})',
                               style: const TextStyle(
                                 color: Colors.orange,
                                 fontWeight: FontWeight.bold,
@@ -1017,7 +1020,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                             ElevatedButton.icon(
                               onPressed: _addMissingWords,
                               icon: const Icon(Icons.add, size: 16),
-                              label: const Text('Add Word'),
+                              label: Text(_l10n?.translate('addWord') ?? 'Add Word'),
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -1029,7 +1032,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                             ElevatedButton.icon(
                               onPressed: _removeExtraWords,
                               icon: const Icon(Icons.remove, size: 16),
-                              label: const Text('Hapus kelebihan'),
+                              label: Text(_l10n?.translate('removeExtra') ?? 'Remove extra'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.orange,
                                 padding: const EdgeInsets.symmetric(
@@ -1079,10 +1082,10 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                               width: 70,
                               child: TextField(
                                 controller: _timestampControllers[index],
-                                decoration: const InputDecoration(
-                                  hintText: 'ms',
+                                decoration: InputDecoration(
+                                  hintText: _l10n?.translate('ms') ?? 'ms',
                                   isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 8,
                                   ),
@@ -1111,7 +1114,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                               child: TextField(
                                 controller: _wordControllers[index],
                                 decoration: InputDecoration(
-                                  hintText: 'MAX-8',
+                                  hintText: _l10n?.translate('maxChars') ?? 'MAX-8',
                                   isDense: true,
                                   counterText:
                                       '${_wordControllers[index].text.length}/8',
@@ -1166,7 +1169,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _addWord,
                   icon: const Icon(Icons.add),
-                  label: const Text('Tambah Kata'),
+                  label: Text(_l10n?.translate('addWord') ?? 'Add Word'),
                 ),
               ),
             ],

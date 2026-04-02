@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'home_screen.dart';
 import 'ble_sync_screen.dart';
 import 'settings_screen.dart';
+import '../l10n/app_localizations.dart';
+import '../providers/locale_provider.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -13,36 +16,43 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const BleSyncScreen(),
-    const SettingsScreen(),
+  List<Widget> _buildScreens(Locale locale) => [
+    HomeScreen(key: ValueKey('home_${locale.languageCode}')),
+    BleSyncScreen(key: ValueKey('sync_${locale.languageCode}')),
+    SettingsScreen(key: ValueKey('settings_${locale.languageCode}')),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final locale = context.watch<LocaleProvider>().locale;
+
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(
+        index: _currentIndex,
+        key: ValueKey('stack_${locale.languageCode}'),
+        children: _buildScreens(locale),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() => _currentIndex = index);
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: l10n?.translate('homeTitle') ?? 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bluetooth_outlined),
-            selectedIcon: Icon(Icons.bluetooth),
-            label: 'Sync',
+            icon: const Icon(Icons.bluetooth_outlined),
+            selectedIcon: const Icon(Icons.bluetooth),
+            label: l10n?.translate('syncTitle') ?? 'Sync',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            selectedIcon: const Icon(Icons.settings),
+            label: l10n?.translate('settingsTitle') ?? 'Settings',
           ),
         ],
       ),

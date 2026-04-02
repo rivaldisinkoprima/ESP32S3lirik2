@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ import 'package:audio_waveforms/audio_waveforms.dart';
 import '../providers/workspace_provider.dart';
 import '../models/word_entry.dart';
 import '../services/spike_detector.dart';
+import '../l10n/app_localizations.dart';
 import 'deret_editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,6 +27,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _showWarning = true;
+
+  AppLocalizations? get _l10n => AppLocalizations.of(context);
+
+  String tr(String key) => _l10n?.translate(key) ?? key;
 
   @override
   void initState() {
@@ -50,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _bulkImport() async {
+    final l10n = AppLocalizations.of(context);
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -64,16 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const Center(
+      builder: (ctx) => Center(
         child: Card(
           child: Padding(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Mengimpor data...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(tr('importing')),
               ],
             ),
           ),
@@ -186,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Import Preview'),
+          title: Text(l10n?.translate('importPreview') ?? 'Import Preview'),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView(
@@ -194,31 +201,31 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _buildPreviewItem(
                   Icons.audio_file,
-                  'Audio Files',
-                  '$audioImported files',
+                  l10n?.translate('audioFiles') ?? 'Audio Files',
+                  l10n?.translate('audioFilesCount', ['$audioImported']) ?? '$audioImported files',
                 ),
                 _buildPreviewItem(
                   Icons.text_fields,
-                  'Lyrics',
-                  '$wordsImported words',
+                  l10n?.translate('lyrics') ?? 'Lyrics',
+                  l10n?.translate('lyricsWordsCount', ['$wordsImported']) ?? '$wordsImported words',
                 ),
                 _buildPreviewItem(
                   Icons.playlist_play,
-                  'Tracks',
-                  '${importedDerets.length} slots',
+                  l10n?.translate('tracks') ?? 'Tracks',
+                  l10n?.translate('tracksSlotsCount', ['${importedDerets.length}']) ?? '${importedDerets.length} slots',
                 ),
                 if (importedDerets.isNotEmpty) ...[
                   const Divider(),
-                  const Text(
-                    'Tracks to update:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    l10n?.translate('tracks') ?? 'Tracks',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
                     children: importedDerets
-                        .map((slot) => Chip(label: Text('Track $slot')))
+                        .map((slot) => Chip(label: Text(l10n?.translate('trackNum', ['$slot']) ?? 'Track $slot')))
                         .toList(),
                   ),
                 ],
@@ -228,14 +235,14 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: Text(l10n?.translate('cancel') ?? 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 _applyImport(audioMap, wordData, importedDerets);
               },
-              child: const Text('Import'),
+              child: Text(l10n?.translate('import') ?? 'Import'),
             ),
           ],
         ),
@@ -245,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Import failed: $e'),
+            content: Text(l10n?.translate('importFailed', [e.toString()]) ?? 'Import failed: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -260,9 +267,9 @@ class _HomeScreenState extends State<HomeScreen> {
         .toList();
 
     if (deretsWithAudio.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No tracks with audio found')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tr('noAudioFound'))));
       return;
     }
 
@@ -281,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (ctx, setDialogState) {
           updateDialog = setDialogState;
           return AlertDialog(
-            title: const Text('Scan All'),
+            title: Text(tr('scanAll')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -290,10 +297,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   size: 50,
                 ),
                 const SizedBox(height: 16),
-                Text('Processing track $currentIndex/$totalDerets'),
+                Text(
+                  _l10n?.translate('processingTrack', ['$currentIndex', '$totalDerets']) ?? 'Processing track $currentIndex of $totalDerets',
+                ),
                 const SizedBox(height: 8),
                 Text(
-                  '$totalDetected words detected',
+                  _l10n?.translate('wordsDetected', ['$totalDetected']) ?? '$totalDetected words detected',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -301,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
+                child: Text(tr('cancel')),
               ),
             ],
           );
@@ -407,14 +416,14 @@ class _HomeScreenState extends State<HomeScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Done'),
+            title: Text(_l10n?.translate('done') ?? 'Done'),
             content: Text(
-              '$totalDetected words detected in ${completedSlots.length} tracks',
+              _l10n?.translate('wordsDetectedIn', ['$totalDetected', '${completedSlots.length}']) ?? '$totalDetected words detected in ${completedSlots.length} tracks',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
+                child: Text(_l10n?.translate('ok') ?? 'OK'),
               ),
             ],
           ),
@@ -424,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(_l10n?.translate('failed', [e.toString()]) ?? 'Failed: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -443,20 +452,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final workspace = Provider.of<WorkspaceProvider>(context);
     final syncedCount = workspace.derets.where((d) => d.isSynced).length;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lyric Sync Audio'),
+        title: Text(l10n?.translate('appName') ?? 'Lirik Sync'),
         actions: [
           IconButton(
             icon: const Icon(Icons.folder_open),
             onPressed: _bulkImport,
-            tooltip: 'Import files',
+            tooltip: l10n?.translate('importFiles') ?? 'Import files',
           ),
           IconButton(
             icon: const Icon(Icons.auto_awesome),
             onPressed: workspace.derets.isEmpty ? null : _autoDetectAll,
-            tooltip: 'Scan all',
+            tooltip: l10n?.translate('scanAll') ?? 'Scan all',
           ),
         ],
       ),
@@ -477,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Use noise-free MP3 files for best results',
+                      l10n?.translate('noiseWarning') ?? 'Use noise-free MP3 files for best results',
                       style: const TextStyle(
                         color: Colors.brown,
                         fontWeight: FontWeight.bold,
@@ -504,9 +514,9 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Text(
-                  'TRACKS',
-                  style: TextStyle(
+                Text(
+                  l10n?.translate('tracksAllCaps') ?? 'TRACKS',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
@@ -523,7 +533,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${workspace.derets.length} slot',
+                    l10n?.translate('tracksSlotsCount', ['${workspace.derets.length}']) ?? '${workspace.derets.length} slots',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 10,
@@ -543,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '$syncedCount synced',
+                      l10n?.translate('syncedCount', ['$syncedCount']) ?? '$syncedCount synced',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -577,12 +587,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         title: Text(
-                          deret.displayTitle ?? 'Track ${deret.slotNumber}',
+                          deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
                         ),
                         subtitle: Text(
                           deret.isSynced
-                              ? '${deret.words.length} words'
-                              : 'Not synced',
+                              ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
+                              : l10n?.translate('notSynced') ?? 'Not synced',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => Navigator.push(
@@ -626,7 +636,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No Tracks Yet',
+            _l10n?.translate('noTracksYet') ?? 'No Tracks Yet',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -635,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Tap + to create a new track',
+            _l10n?.translate('tapPlusToCreate') ?? 'Tap + to create a new track',
             style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
           ),
         ],
@@ -709,20 +719,20 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Import Success'),
+        title: Text(_l10n?.translate('importSuccess') ?? 'Import Success'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Audio: $audioImported files'),
-            Text('Lyrics: $wordsImported words'),
-            Text('Tracks: ${importedSlots.length} slots'),
+            Text(_l10n?.translate('audioFilesCount', ['$audioImported']) ?? 'Audio: $audioImported files'),
+            Text(_l10n?.translate('lyricsWordsCount', ['$wordsImported']) ?? 'Lyrics: $wordsImported words'),
+            Text(_l10n?.translate('tracksSlotsCount', ['${importedSlots.length}']) ?? 'Tracks: ${importedSlots.length} slots'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
+            child: Text(_l10n?.translate('ok') ?? 'OK'),
           ),
         ],
       ),

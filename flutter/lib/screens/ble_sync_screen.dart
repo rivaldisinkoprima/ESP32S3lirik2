@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/workspace_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class BleSyncScreen extends StatefulWidget {
   const BleSyncScreen({super.key});
@@ -21,6 +22,8 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
   String _syncStatus = '';
   int _syncedDerets = 0;
   int _syncedWords = 0;
+
+  AppLocalizations? get _l10n => AppLocalizations.of(context);
 
   Widget _buildSectionHeader(String title) {
     return Container(
@@ -51,12 +54,12 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No devices found',
+              _l10n?.translate('noDevicesFound') ?? 'No devices found',
               style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap scan button to search',
+              _l10n?.translate('tapScanToSearch') ?? 'Tap scan button to search',
               style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
             ),
           ],
@@ -65,13 +68,13 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     }
 
     if (ble.isScanning && ble.scanResults.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Searching for BLE devices...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(_l10n?.translate('searchingForBle') ?? 'Searching for BLE devices...'),
           ],
         ),
       );
@@ -83,7 +86,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         final result = ble.scanResults[index];
         final name = result.device.platformName.isNotEmpty
             ? result.device.platformName
-            : 'Unknown Device';
+            : _l10n?.translate('unknownDevice') ?? 'Unknown Device';
         final rssi = result.rssi;
         final isTarget =
             name.toLowerCase().contains('lirik') ||
@@ -115,9 +118,9 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     color: Colors.green.shade100,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text(
-                    'TARGET',
-                    style: TextStyle(
+                  child: Text(
+                    _l10n?.translate('target') ?? 'TARGET',
+                    style: const TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: Colors.green,
@@ -146,7 +149,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
           ),
           trailing: ElevatedButton(
             onPressed: () => _showPinDialog(context, ble, result.device),
-            child: const Text('Connect'),
+            child: Text(_l10n?.translate('connect') ?? 'Connect'),
           ),
         );
       },
@@ -192,7 +195,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '$_syncedDerets deret, $_syncedWords kata',
+                _l10n?.translate('syncingTrackDetail', ['$_syncedDerets', '$_syncedWords']) ?? '$_syncedDerets deret, $_syncedWords kata',
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
             ],
@@ -220,7 +223,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Connected to ${ble.connectedDevice?.platformName}',
+              '${_l10n?.translate('connectedStatus') ?? 'Connected'} to ${ble.connectedDevice?.platformName}',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -231,7 +234,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '$syncedDerets tracks ready, $totalWords words',
+                _l10n?.translate('syncSuccessful', ['$syncedDerets', '$totalWords']) ?? '$syncedDerets tracks ready, $totalWords words',
                 style: TextStyle(fontSize: 13, color: Colors.blue.shade800),
               ),
             ),
@@ -243,7 +246,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     ? null
                     : () => _startSync(ble, workspace),
                 icon: const Icon(Icons.cloud_upload),
-                label: const Text('Sync All to Device'),
+                label: Text(_l10n?.translate('syncAllToDevice') ?? 'Sync All to Device'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.all(16),
                 ),
@@ -255,7 +258,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => _confirmReset(context, ble),
                 icon: const Icon(Icons.restore, color: Colors.orange),
-                label: const Text('Factory Reset'),
+                label: Text(_l10n?.translate('factoryReset') ?? 'Factory Reset'),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.orange),
                 ),
@@ -267,7 +270,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => ble.disconnect(),
                 icon: const Icon(Icons.bluetooth_disabled, color: Colors.red),
-                label: const Text('Disconnect'),
+                label: Text(_l10n?.translate('disconnect') ?? 'Disconnect'),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.red),
                 ),
@@ -285,7 +288,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     final workspace = Provider.of<WorkspaceProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sync to Device')),
+      appBar: AppBar(title: Text(_l10n?.translate('syncToDevice') ?? 'Sync to Device')),
       body: Column(
         children: [
           _buildStatusHeader(ble),
@@ -325,7 +328,9 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
           ),
           const SizedBox(width: 8),
           Text(
-            ble.isConnected ? 'Device Connected' : 'No Device Connected',
+            ble.isConnected
+                ? (_l10n?.translate('deviceConnected') ?? 'Device Connected')
+                : (_l10n?.translate('noDeviceConnected') ?? 'No Device Connected'),
             style: TextStyle(
               color: ble.isConnected ? Colors.green : Colors.red,
               fontWeight: FontWeight.bold,
@@ -345,7 +350,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Enter Device PIN'),
+              title: Text(_l10n?.translate('enterDevicePin') ?? 'Enter Device PIN'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -358,7 +363,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                       }
                     },
                     decoration: InputDecoration(
-                      hintText: '6-digit PIN',
+                      hintText: _l10n?.translate('sixDigitPin') ?? '6-digit PIN',
                       errorText: pinError,
                     ),
                     keyboardType: TextInputType.number,
@@ -369,12 +374,12 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: Text(_l10n?.translate('cancel') ?? 'Cancel'),
                 ),
                 TextButton(
                   onPressed: () async {
                     if (pin.length != 6 || !RegExp(r'^\d{6}$').hasMatch(pin)) {
-                      pinError = 'PIN must be 6 digits';
+                      pinError = _l10n?.translate('pinMustBeSixDigits') ?? 'PIN must be 6 digits';
                       setDialogState(() {});
                       return;
                     }
@@ -383,15 +388,15 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     final success = await ble.connect(device, pin);
                     if (!success) {
                       scaffoldMessenger.showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text(
-                            'Failed to connect to Lirik S3 Service!',
+                            _l10n?.translate('failed', ['Lirik S3 Service']) ?? 'Failed to connect to Lirik S3 Service!',
                           ),
                         ),
                       );
                     }
                   },
-                  child: const Text('Connect'),
+                  child: Text(_l10n?.translate('connect') ?? 'Connect'),
                 ),
               ],
             );
@@ -408,7 +413,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     setState(() {
       _isSyncing = true;
       _syncProgress = 0.0;
-      _syncStatus = 'Menyiapkan data...';
+      _syncStatus = _l10n?.translate('preparingData') ?? 'Menyiapkan data...';
       _syncedDerets = 0;
       _syncedWords = 0;
     });
@@ -426,21 +431,21 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               .take(i + 1)
               .fold<int>(0, (sum, d) => sum + d.words.length);
           _syncProgress = (i + 1) / syncedDerets.length * 0.8;
-          _syncStatus = 'Syncing Track ${syncedDerets[i].slotNumber}...';
+          _syncStatus = _l10n?.translate('syncingTrackDetail', ['${syncedDerets[i].slotNumber}']) ?? 'Syncing Track ${syncedDerets[i].slotNumber}...';
         });
         await Future.delayed(const Duration(milliseconds: 100));
       }
 
       setState(() {
         _syncProgress = 0.9;
-        _syncStatus = 'Mengirim data...';
+        _syncStatus = _l10n?.translate('sendingData') ?? 'Mengirim data...';
       });
 
       await ble.writeBatchJson(payload);
 
       setState(() {
         _syncProgress = 1.0;
-        _syncStatus = 'Done!';
+        _syncStatus = _l10n?.translate('doneSync') ?? 'Done!';
       });
 
       await Future.delayed(const Duration(milliseconds: 500));
@@ -448,14 +453,14 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
-            'Sync successful! $_syncedDerets tracks, $_syncedWords words sent.',
+            _l10n?.translate('syncSuccessful', ['$_syncedDerets', '$_syncedWords']) ?? 'Sync successful! $_syncedDerets tracks, $_syncedWords words sent.',
           ),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Sync Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text(_l10n?.translate('syncError', [e.toString()]) ?? 'Sync Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {
@@ -468,14 +473,14 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Factory Reset?'),
-        content: const Text(
-          'Ini akan menghapus semua file kustom di memori alat ESP32 dan kembali ke default.',
+        title: Text(_l10n?.translate('factoryResetConfirm') ?? 'Factory Reset?'),
+        content: Text(
+          _l10n?.translate('factoryResetWarning') ?? 'Ini akan menghapus semua file kustom di memori alat ESP32 dan kembali ke default.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(_l10n?.translate('cancel') ?? 'Cancel'),
           ),
           TextButton(
             onPressed: () async {
@@ -483,10 +488,10 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               Navigator.pop(context);
               await ble.sendReset();
               scaffoldMessenger.showSnackBar(
-                const SnackBar(content: Text('Reset Command Sent!')),
+                SnackBar(content: Text(_l10n?.translate('resetCommandSent') ?? 'Reset Command Sent!')),
               );
             },
-            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+            child: Text(_l10n?.translate('reset') ?? 'Reset', style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

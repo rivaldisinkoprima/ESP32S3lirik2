@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import '../providers/workspace_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/locale_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,16 +28,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isDefault = offset == _defaultValue;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)?.translate('settingsTitle') ?? 'Settings')),
       body: ListView(
         children: [
           Container(
             width: double.infinity,
             color: Colors.blue.shade800,
             padding: const EdgeInsets.all(12),
-            child: const Text(
-              'DELAY OFFSET',
-              style: TextStyle(
+            child: Text(
+              AppLocalizations.of(context)?.translate('delayOffset') ?? 'DELAY OFFSET',
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
@@ -50,9 +52,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Hardware Delay Offset',
-                      style: TextStyle(
+                    Text(
+                      AppLocalizations.of(context)?.translate('hardwareDelayOffset') ?? 'Hardware Delay Offset',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
@@ -83,7 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Digunakan untuk kompensasi delay DFPlayer',
+                  AppLocalizations.of(context)?.translate('hardwareDelayDesc') ?? 'Digunakan untuk kompensasi delay DFPlayer',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
@@ -91,14 +93,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Lebih lambat',
+                      AppLocalizations.of(context)?.translate('slower') ?? 'Lebih lambat',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.red.shade400,
                       ),
                     ),
                     Text(
-                      'Lebih cepat',
+                      AppLocalizations.of(context)?.translate('faster') ?? 'Lebih cepat',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.green.shade400,
@@ -157,9 +159,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Nilai Cepat',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                Text(
+                  AppLocalizations.of(context)?.translate('quickValues') ?? 'Nilai Cepat',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -190,25 +192,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }).toList(),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Penjelasan',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                Text(
+                  AppLocalizations.of(context)?.translate('explanation') ?? 'Penjelasan',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const SizedBox(height: 12),
                 _buildInfoCard(
                   icon: Icons.arrow_forward,
                   color: Colors.green,
-                  title: 'Offset Positif (+)',
+                  title: AppLocalizations.of(context)?.translate('positiveOffset') ?? 'Offset Positif (+)',
                   desc:
-                      'Lirik diputar lebih awal dari audio. Gunakan jika lirik terlambat.',
+                      AppLocalizations.of(context)?.translate('positiveOffsetDesc') ?? 'Lirik diputar lebih awal dari audio. Gunakan jika lirik terlambat.',
                 ),
                 const SizedBox(height: 8),
                 _buildInfoCard(
                   icon: Icons.arrow_back,
                   color: Colors.red,
-                  title: 'Offset Negatif (-)',
+                  title: AppLocalizations.of(context)?.translate('negativeOffset') ?? 'Offset Negatif (-)',
                   desc:
-                      'Lirik diputar lebih lambat dari audio. Gunakan jika lirik terlalu cepat.',
+                      AppLocalizations.of(context)?.translate('negativeOffsetDesc') ?? 'Lirik diputar lebih lambat dari audio. Gunakan jika lirik terlalu cepat.',
                 ),
                 const SizedBox(height: 24),
                 Row(
@@ -222,14 +224,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      'Offset dikembalikan ke $_defaultValue ms',
+                                      AppLocalizations.of(context)?.translate('offsetResetTo', ['$_defaultValue']) ?? 'Offset dikembalikan ke $_defaultValue ms',
                                     ),
                                     duration: const Duration(seconds: 1),
                                   ),
                                 );
                               },
                         icon: const Icon(Icons.restore, size: 18),
-                        label: const Text('Reset'),
+                        label: Text(AppLocalizations.of(context)?.translate('reset') ?? 'Reset'),
                       ),
                     ),
                   ],
@@ -242,9 +244,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             color: Colors.blue.shade800,
             padding: const EdgeInsets.all(12),
-            child: const Text(
-              'APPEARANCE',
-              style: TextStyle(
+            child: Text(
+              AppLocalizations.of(context)?.translate('appearance') ?? 'APPEARANCE',
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
@@ -254,11 +256,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, _) {
               return SwitchListTile(
-                title: const Text('Dark Mode'),
+                title: Text(AppLocalizations.of(context)?.translate('darkMode') ?? 'Dark Mode'),
                 subtitle: Text(
                   themeProvider.isDarkMode
-                      ? 'Dark theme enabled'
-                      : 'Light theme enabled',
+                      ? (AppLocalizations.of(context)?.translate('darkModeEnabled') ?? 'Dark theme enabled')
+                      : (AppLocalizations.of(context)?.translate('darkModeDisabled') ?? 'Light theme enabled'),
                 ),
                 secondary: Icon(
                   themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
@@ -269,6 +271,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   HapticFeedback.lightImpact();
                   themeProvider.setDarkMode(value);
                 },
+              );
+            },
+          ),
+          const Divider(height: 32),
+          Container(
+            width: double.infinity,
+            color: Colors.blue.shade800,
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              AppLocalizations.of(context)?.translate('languageCaps') ?? 'LANGUAGE',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Consumer<LocaleProvider>(
+            builder: (context, localeProvider, _) {
+              final l10n = AppLocalizations.of(context);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListTile(
+
+                    leading: const Icon(Icons.language, size: 28),
+                    title: Text(l10n?.translate('language') ?? 'Language'),
+                    subtitle: Text(
+                      localeProvider.locale.languageCode == 'en'
+                          ? (l10n?.translate('english') ?? 'English')
+                          : (l10n?.translate('indonesian') ?? 'Bahasa Indonesia'),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton(
+                          onPressed: localeProvider.locale.languageCode == 'en'
+                              ? null
+                              : () {
+                                  HapticFeedback.lightImpact();
+                                  localeProvider.setLocale(const Locale('en'));
+                                },
+                          child: const Text('EN'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: localeProvider.locale.languageCode == 'id'
+                              ? null
+                              : () {
+                                  HapticFeedback.lightImpact();
+                                  localeProvider.setLocale(const Locale('id'));
+                                },
+                          child: const Text('ID'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               );
             },
           ),
