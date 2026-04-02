@@ -11,6 +11,7 @@
 // Routes: Via Navigator.push dari HomeScreen
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -730,6 +731,76 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     });
   }
 
+  Future<void> _importWordsFromJson() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result == null || result.files.single.path == null) return;
+
+    final file = File(result.files.single.path!);
+    try {
+      final content = await file.readAsString();
+      final data = jsonDecode(content) as Map<String, dynamic>;
+
+      final deretKey = 'deret_${widget.slotNumber}';
+      if (!data.containsKey(deretKey)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'File tidak mengandung data untuk "$deretKey". '
+              'Pastikan format: {"deret_${widget.slotNumber}": ["KATA1", "KATA2", ...]}',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final words = (data[deretKey] as List).map((e) => e.toString()).toList();
+
+      setState(() {
+        // Clear existing words
+        for (var c in _wordControllers) {
+          c.dispose();
+        }
+        for (var c in _timestampControllers) {
+          c.dispose();
+        }
+        _wordControllers.clear();
+        _timestampControllers.clear();
+        _editingDeret.words.clear();
+
+        // Add new words
+        for (final word in words) {
+          final truncated = word.length > 8 ? word.substring(0, 8) : word;
+          _editingDeret.words.add(WordEntry(timestampMs: 0, word: truncated));
+          _wordControllers.add(TextEditingController(text: truncated));
+          _timestampControllers.add(TextEditingController(text: '0'));
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${words.length} kata berhasil diimpor ke Deret ${widget.slotNumber}',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membaca file JSON: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _durationSubscription?.cancel();
@@ -776,19 +847,48 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: Text(
-                      _editingDeret.audioFilePath?.split('/').last ??
-                          'Pilih file audio...',
-                      style: const TextStyle(fontStyle: FontStyle.italic),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _editingDeret.audioFilePath?.split('/').last ??
+                              'Pilih file audio...',
+                          style: const TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _pickAudioFile,
+                        icon: const Icon(Icons.audio_file),
+                        label: const Text('Open'),
+                      ),
+                    ],
                   ),
-                  ElevatedButton.icon(
-                    onPressed: _pickAudioFile,
-                    icon: const Icon(Icons.audio_file),
-                    label: const Text('Open'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Import kata dari file JSON untuk Deret ${widget.slotNumber}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _importWordsFromJson,
+                        icon: const Icon(Icons.file_upload, size: 18),
+                        label: const Text('Import'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

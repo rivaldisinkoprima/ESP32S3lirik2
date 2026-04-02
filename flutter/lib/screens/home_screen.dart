@@ -3,15 +3,20 @@
 // Fungsi:
 // - Menampilkan daftar deret (workspace)
 // - Warning banner dismissible
+// - Bulk import: pilih file audio + JSON dengan multi-select picker
 // - Navigasi ke DeretEditorScreen untuk edit kata
 // - Tombol ke Settings dan BLE Sync
 //
 // Routes: '/'
 
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/workspace_provider.dart';
+import '../models/word_entry.dart';
 import 'deret_editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -47,6 +52,218 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _bulkImport() async {
+    // Multi-select file picker
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: ['mp3', 'json'],
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    debugPrint('[BULK_IMPORT] Selected ${result.files.length} files');
+
+    // Show loading dialog
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Mengimpor data...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // Process selected files
+      final audioMap = <int, String>{}; // slotNumber -> path
+      PlatformFile? jsonFile;
+
+      for (final file in result.files) {
+        final name = file.name.toLowerCase();
+        debugPrint('[BULK_IMPORT] Processing: ${file.name}');
+
+        // Check for JSON file
+        if (name.endsWith('.json')) {
+          jsonFile = file;
+          debugPrint('[BULK_IMPORT] Found JSON: ${file.name}');
+        }
+
+        // Check for MP3 files with pattern like "001.mp3"
+        if (name.endsWith('.mp3')) {
+          final match = RegExp(r'^(\d{3})\.mp3$').firstMatch(name);
+          if (match != null) {
+            final num = int.parse(match.group(1)!);
+            if (num >= 1 && num <= 10) {
+              audioMap[num] = file.path!;
+              debugPrint('[BULK_IMPORT] Audio slot $num: ${file.name}');
+            }
+          }
+        }
+      }
+
+      debugPrint('[BULK_IMPORT] audioMap: $audioMap');
+
+      // Parse JSON data
+      Map<String, List<String>> wordData = {};
+      if (jsonFile != null) {
+        debugPrint('[BULK_IMPORT] JSON file: ${jsonFile.name}');
+        debugPrint(
+          '[BULK_IMPORT] JSON bytes: ${jsonFile.bytes?.length ?? "null"}',
+        );
+        debugPrint('[BULK_IMPORT] JSON path: ${jsonFile.path ?? "null"}');
+
+        // Try to read JSON from bytes first, if not available try from path
+        try {
+          List<int>? bytes = jsonFile.bytes;
+          String content;
+
+          if (bytes != null && bytes.isNotEmpty) {
+            content = String.fromCharCodes(bytes);
+            debugPrint(
+              '[BULK_IMPORT] Read JSON from bytes, length: ${bytes.length}',
+            );
+          } else if (jsonFile.path != null && jsonFile.path!.isNotEmpty) {
+            // Fallback: read from file path
+            final file = File(jsonFile.path!);
+            if (await file.exists()) {
+              content = await file.readAsString();
+              debugPrint('[BULK_IMPORT] Read JSON from path');
+            } else {
+              debugPrint('[BULK_IMPORT] JSON file not found at path');
+              content = '';
+            }
+          } else {
+            debugPrint('[BULK_IMPORT] No JSON source available');
+            content = '';
+          }
+
+          if (content.isNotEmpty) {
+            debugPrint(
+              '[BULK_IMPORT] JSON content preview: ${content.substring(0, content.length > 100 ? 100 : content.length)}',
+            );
+            final data = jsonDecode(content) as Map<String, dynamic>;
+            for (final entry in data.entries) {
+              final key = entry.key.toLowerCase();
+              debugPrint('[BULK_IMPORT] JSON key found: $key');
+              if (key.startsWith('deret_') && entry.value is List) {
+                final slotNum = int.tryParse(key.replaceAll('deret_', ''));
+                if (slotNum != null && slotNum >= 1 && slotNum <= 10) {
+                  wordData['deret_$slotNum'] = (entry.value as List)
+                      .map((e) => e.toString())
+                      .toList();
+                  debugPrint(
+                    '[BULK_IMPORT] Words for deret_$slotNum: ${wordData['deret_$slotNum']?.length}',
+                  );
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[BULK_IMPORT] JSON parse error: $e');
+        }
+      } else {
+        debugPrint('[BULK_IMPORT] No JSON file selected');
+      }
+
+      debugPrint('[BULK_IMPORT] wordData keys: ${wordData.keys.toList()}');
+
+      // Update workspace
+      final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
+      int audioImported = 0;
+      int wordsImported = 0;
+      final importedDerets = <int>[];
+
+      for (final deret in workspace.derets) {
+        final slot = deret.slotNumber;
+        bool changed = false;
+
+        // Import audio
+        if (audioMap.containsKey(slot)) {
+          deret.audioFilePath = audioMap[slot];
+          audioImported++;
+          changed = true;
+        }
+
+        // Import words from JSON
+        final wordKey = 'deret_$slot';
+        if (wordData.containsKey(wordKey)) {
+          final words = wordData[wordKey]!;
+          deret.words.clear();
+          for (final word in words) {
+            final truncated = word.length > 8 ? word.substring(0, 8) : word;
+            deret.words.add(WordEntry(timestampMs: 0, word: truncated));
+          }
+          wordsImported += words.length;
+          changed = true;
+        }
+
+        if (changed) {
+          importedDerets.add(slot);
+          workspace.updateDeret(deret);
+        }
+      }
+
+      debugPrint(
+        '[BULK_IMPORT] Result: audio=$audioImported, words=$wordsImported, derets=${importedDerets.length}',
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Import Berhasil'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Audio: $audioImported file'),
+                Text('Kata: $wordsImported kata'),
+                Text('Deret: ${importedDerets.length} slot'),
+                if (importedDerets.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Slot: ${importedDerets.join(', ')}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import gagal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final workspace = Provider.of<WorkspaceProvider>(context);
@@ -56,6 +273,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Lirik Sync Workspace'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: _bulkImport,
+            tooltip: 'Import file',
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.pushNamed(context, '/settings'),
