@@ -370,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lyric Sync'),
+        title: const Text('Lyric Sync Audio'),
         actions: [
           IconButton(
             icon: const Icon(Icons.folder_open),
