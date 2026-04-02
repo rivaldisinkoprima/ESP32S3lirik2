@@ -15,6 +15,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
@@ -257,8 +258,9 @@ class _HomeScreenState extends State<HomeScreen> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                LinearProgressIndicator(
-                  value: totalDerets > 0 ? currentIndex / totalDerets : 0,
+                LoadingAnimationWidget.fourRotatingDots(
+                  color: Theme.of(context).primaryColor,
+                  size: 50,
                 ),
                 const SizedBox(height: 16),
                 Text('Memproses deret ke $currentIndex/$totalDerets'),
@@ -376,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lirik Sync Workspace'),
+        title: const Text('Lyric Sync'),
         actions: [
           IconButton(
             icon: const Icon(Icons.folder_open),
@@ -415,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Gunakan file MP3 dari FOLDER 03 (bebas noise)',
+                      'Gunakan file MP3 yang bebas noise',
                       style: const TextStyle(
                         color: Colors.brown,
                         fontWeight: FontWeight.bold,
