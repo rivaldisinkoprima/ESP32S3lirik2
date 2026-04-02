@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
@@ -682,6 +683,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       }
     }
 
+    HapticFeedback.lightImpact();
     Provider.of<WorkspaceProvider>(
       context,
       listen: false,
@@ -811,303 +813,357 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('Edit Track ${widget.slotNumber}'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.check),
-              onPressed: _save,
-              tooltip: 'Save',
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              color: Colors.blue.shade800,
-              padding: const EdgeInsets.all(12),
-              child: const Text(
-                'SELECT AUDIO',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          final shouldPop = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Discard Changes?'),
+              content: const Text(
+                'You have unsaved changes. Are you sure you want to go back?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _editingDeret.audioFilePath?.split('/').last ??
-                              'Pilih file audio...',
-                          style: const TextStyle(fontStyle: FontStyle.italic),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _pickAudioFile,
-                        icon: const Icon(Icons.audio_file),
-                        label: const Text('Open'),
-                      ),
-                    ],
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(
+                    'Discard',
+                    style: TextStyle(color: Colors.red),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Track ${widget.slotNumber}: Import lyrics from JSON file',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _importWordsFromJson,
-                        icon: const Icon(Icons.file_upload, size: 18),
-                        label: const Text('Import'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            if (_isPlayerReady)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Column(
-                  children: [
-                    _buildProgressBar(),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            _playerController.playerState == PlayerState.playing
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                          ),
-                          onPressed: () async {
-                            if (_playerController.playerState ==
-                                PlayerState.playing) {
-                              await _playerController.pausePlayer();
-                              setState(() => _currentPlayingIndex = -1);
-                            } else {
-                              await _playerController.startPlayer();
-                            }
-                            setState(() {});
-                          },
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _isDetecting ? null : _autoDetect,
-                          icon: _isDetecting
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.auto_awesome),
-                          label: const Text('Detect Words'),
-                        ),
-                      ],
-                    ),
-                  ],
                 ),
+              ],
+            ),
+          );
+          if (shouldPop == true && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text('Edit Track ${widget.slotNumber}'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.check),
+                onPressed: _save,
+                tooltip: 'Save',
               ),
-            if (_isLoadingWaveform) const LinearProgressIndicator(),
-
-            if (_detectedSpikesCount > 0 &&
-                _detectedSpikesCount != _wordControllers.length)
+            ],
+          ),
+          body: Column(
+            children: [
               Container(
                 width: double.infinity,
-                color: Colors.orange.shade100,
-                padding: const EdgeInsets.all(8.0),
+                color: Colors.blue.shade800,
+                padding: const EdgeInsets.all(12),
+                child: const Text(
+                  'SELECT AUDIO',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.warning_amber, color: Colors.orange),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Spike ($_detectedSpikesCount) != Kata (${_wordControllers.length})',
-                            style: const TextStyle(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            _editingDeret.audioFilePath?.split('/').last ??
+                                'Pilih file audio...',
+                            style: const TextStyle(fontStyle: FontStyle.italic),
                           ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _pickAudioFile,
+                          icon: const Icon(Icons.audio_file),
+                          label: const Text('Open'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
+                    Row(
                       children: [
-                        if (_detectedSpikesCount > _wordControllers.length)
-                          ElevatedButton.icon(
-                            onPressed: _addMissingWords,
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text('Add Word'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
+                        Expanded(
+                          child: Text(
+                            'Track ${widget.slotNumber}: Import lyrics from JSON file',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
                             ),
                           ),
-                        if (_wordControllers.length > _detectedSpikesCount)
-                          ElevatedButton.icon(
-                            onPressed: _removeExtraWords,
-                            icon: const Icon(Icons.remove, size: 16),
-                            label: const Text('Hapus kelebihan'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _importWordsFromJson,
+                          icon: const Icon(Icons.file_upload, size: 18),
+                          label: const Text('Import'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
 
-            const Divider(),
-            Container(
-              width: double.infinity,
-              color: Colors.blue.shade800,
-              padding: const EdgeInsets.all(12),
-              child: const Text(
-                'WORDS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: _wordControllers.length,
-                itemBuilder: (context, index) {
-                  final isActive = _currentPlayingIndex == index;
-                  return Container(
-                    color: isActive ? Colors.yellow.withAlpha(77) : null,
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 2,
-                      ),
-                      leading: Text('${index + 1}°'),
-                      title: Row(
+              if (_isPlayerReady)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    children: [
+                      _buildProgressBar(),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          SizedBox(
-                            width: 70,
-                            child: TextField(
-                              controller: _timestampControllers[index],
-                              decoration: const InputDecoration(
-                                hintText: 'ms',
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 8,
-                                ),
-                              ),
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                              ],
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isActive
-                                    ? Colors.orange
-                                    : Colors.blueGrey,
-                                fontWeight: isActive
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: TextField(
-                              controller: _wordControllers[index],
-                              decoration: const InputDecoration(
-                                hintText: 'MAKS-8',
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 8,
-                                ),
-                              ),
-                              maxLength: 8,
-                              textCapitalization: TextCapitalization.characters,
-                            ),
-                          ),
                           IconButton(
                             icon: Icon(
-                              isActive
-                                  ? Icons.pause_circle
-                                  : Icons.play_circle_outline,
-                              color: isActive ? Colors.orange : Colors.green,
-                              size: 28,
+                              _playerController.playerState ==
+                                      PlayerState.playing
+                                  ? Icons.pause
+                                  : Icons.play_arrow,
                             ),
                             onPressed: () async {
-                              if (isActive) {
+                              if (_playerController.playerState ==
+                                  PlayerState.playing) {
                                 await _playerController.pausePlayer();
-                                await _durationSubscription?.cancel();
-                                _durationSubscription = null;
                                 setState(() => _currentPlayingIndex = -1);
                               } else {
-                                await _playFromWord(index);
+                                await _playerController.startPlayer();
                               }
+                              setState(() {});
                             },
                           ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.remove_circle_outline,
-                              color: Colors.redAccent,
-                            ),
-                            onPressed: () => _removeWord(index),
+                          ElevatedButton.icon(
+                            onPressed: _isDetecting ? null : _autoDetect,
+                            icon: _isDetecting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.auto_awesome),
+                            label: const Text('Detect Words'),
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+              if (_isLoadingWaveform)
+                Shimmer.fromColors(
+                  baseColor: Colors.grey.shade300,
+                  highlightColor: Colors.grey.shade100,
+                  child: Container(
+                    height: 60,
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  );
-                },
+                  ),
+                ),
+
+              if (_detectedSpikesCount > 0 &&
+                  _detectedSpikesCount != _wordControllers.length)
+                Container(
+                  width: double.infinity,
+                  color: Colors.orange.shade100,
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_amber, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Spike ($_detectedSpikesCount) != Kata (${_wordControllers.length})',
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (_detectedSpikesCount > _wordControllers.length)
+                            ElevatedButton.icon(
+                              onPressed: _addMissingWords,
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Add Word'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                              ),
+                            ),
+                          if (_wordControllers.length > _detectedSpikesCount)
+                            ElevatedButton.icon(
+                              onPressed: _removeExtraWords,
+                              icon: const Icon(Icons.remove, size: 16),
+                              label: const Text('Hapus kelebihan'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+              const Divider(),
+              Container(
+                width: double.infinity,
+                color: Colors.blue.shade800,
+                padding: const EdgeInsets.all(12),
+                child: const Text(
+                  'WORDS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ElevatedButton.icon(
-                onPressed: _addWord,
-                icon: const Icon(Icons.add),
-                label: const Text('Tambah Kata'),
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: _wordControllers.length,
+                  itemBuilder: (context, index) {
+                    final isActive = _currentPlayingIndex == index;
+                    return Container(
+                      color: isActive ? Colors.yellow.withAlpha(77) : null,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 2,
+                        ),
+                        leading: Text('${index + 1}°'),
+                        title: Row(
+                          children: [
+                            SizedBox(
+                              width: 70,
+                              child: TextField(
+                                controller: _timestampControllers[index],
+                                decoration: const InputDecoration(
+                                  hintText: 'ms',
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                keyboardType: TextInputType.numberWithOptions(
+                                  signed: true,
+                                ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^-?\d*'),
+                                  ),
+                                ],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isActive
+                                      ? Colors.orange
+                                      : Colors.blueGrey,
+                                  fontWeight: isActive
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: TextField(
+                                controller: _wordControllers[index],
+                                decoration: InputDecoration(
+                                  hintText: 'MAX-8',
+                                  isDense: true,
+                                  counterText:
+                                      '${_wordControllers[index].text.length}/8',
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                maxLength: 8,
+                                maxLengthEnforcement:
+                                    MaxLengthEnforcement.enforced,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                onChanged: (val) => setState(() {}),
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                isActive
+                                    ? Icons.pause_circle
+                                    : Icons.play_circle_outline,
+                                color: isActive ? Colors.orange : Colors.green,
+                                size: 28,
+                              ),
+                              onPressed: () async {
+                                if (isActive) {
+                                  await _playerController.pausePlayer();
+                                  await _durationSubscription?.cancel();
+                                  _durationSubscription = null;
+                                  setState(() => _currentPlayingIndex = -1);
+                                } else {
+                                  await _playFromWord(index);
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () => _removeWord(index),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton.icon(
+                  onPressed: _addWord,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Tambah Kata'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

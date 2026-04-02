@@ -4,7 +4,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../providers/workspace_provider.dart';
+import '../providers/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -234,6 +236,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+          const Divider(height: 32),
+          Container(
+            width: double.infinity,
+            color: Colors.blue.shade800,
+            padding: const EdgeInsets.all(12),
+            child: const Text(
+              'APPEARANCE',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              return SwitchListTile(
+                title: const Text('Dark Mode'),
+                subtitle: Text(
+                  themeProvider.isDarkMode
+                      ? 'Dark theme enabled'
+                      : 'Light theme enabled',
+                ),
+                secondary: Icon(
+                  themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  size: 28,
+                ),
+                value: themeProvider.isDarkMode,
+                onChanged: (value) {
+                  HapticFeedback.lightImpact();
+                  themeProvider.setDarkMode(value);
+                },
+              );
+            },
           ),
         ],
       ),

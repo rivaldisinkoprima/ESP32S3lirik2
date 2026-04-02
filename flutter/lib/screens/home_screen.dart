@@ -177,34 +177,69 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (changed) {
           importedDerets.add(slot);
-          workspace.updateDeret(deret);
         }
       }
 
-      if (mounted) {
-        Navigator.of(context).pop();
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Import Success'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Import Preview'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
               children: [
-                Text('Audio: $audioImported file'),
-                Text('Lyrics: $wordsImported words'),
-                Text('Tracks: ${importedDerets.length} slot'),
+                _buildPreviewItem(
+                  Icons.audio_file,
+                  'Audio Files',
+                  '$audioImported files',
+                ),
+                _buildPreviewItem(
+                  Icons.text_fields,
+                  'Lyrics',
+                  '$wordsImported words',
+                ),
+                _buildPreviewItem(
+                  Icons.playlist_play,
+                  'Tracks',
+                  '${importedDerets.length} slots',
+                ),
+                if (importedDerets.isNotEmpty) ...[
+                  const Divider(),
+                  const Text(
+                    'Tracks to update:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: importedDerets
+                        .map((slot) => Chip(label: Text('Track $slot')))
+                        .toList(),
+                  ),
+                ],
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
-              ),
-            ],
           ),
-        );
-      }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _applyImport(audioMap, wordData, importedDerets);
+              },
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
@@ -309,10 +344,51 @@ class _HomeScreenState extends State<HomeScreen> {
               'threshold': 0.015,
             });
 
-            deret.words.clear();
-            for (final ts in detectedTimes) {
-              deret.words.add(WordEntry(timestampMs: ts, word: ''));
+            // Preserve existing words when possible, update timestamps
+            final List<WordEntry> newWords = <WordEntry>[];
+            final int wordCount = deret.words.length;
+            final int detectedCount = detectedTimes.length;
+
+            if (wordCount > 0 && detectedCount > 0) {
+              // When we have both existing words and detected timestamps,
+              // map them by position (up to the minimum count)
+              final int mapCount = wordCount < detectedCount
+                  ? wordCount
+                  : detectedCount;
+              for (int i = 0; i < mapCount; i++) {
+                final existingWord = deret.words[i].word;
+                final newTimestamp = detectedTimes[i];
+                newWords.add(
+                  WordEntry(timestampMs: newTimestamp, word: existingWord),
+                );
+              }
+
+              // If we detected more timestamps than existing words, add new empty words
+              if (detectedCount > wordCount) {
+                for (int i = wordCount; i < detectedCount; i++) {
+                  newWords.add(
+                    WordEntry(timestampMs: detectedTimes[i], word: ''),
+                  );
+                }
+              }
+              // If we have more existing words than detected timestamps, keep the extra words with timestamp 0
+              if (wordCount > detectedCount) {
+                for (int i = detectedCount; i < wordCount; i++) {
+                  newWords.add(deret.words[i]);
+                }
+              }
+            } else if (detectedCount > 0) {
+              // No existing words, create new ones from detected timestamps
+              for (final ts in detectedTimes) {
+                newWords.add(WordEntry(timestampMs: ts, word: ''));
+              }
+            } else {
+              // No detected timestamps, keep existing words
+              newWords.addAll(deret.words);
             }
+
+            deret.words.clear();
+            deret.words.addAll(newWords);
             deret.isSynced = true;
             workspace.updateDeret(deret);
 
@@ -381,14 +457,6 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.auto_awesome),
             onPressed: workspace.derets.isEmpty ? null : _autoDetectAll,
             tooltip: 'Scan all',
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.bluetooth),
-            onPressed: () => Navigator.pushNamed(context, '/sync'),
           ),
         ],
       ),
@@ -569,6 +637,92 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             'Tap + to create a new track',
             style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewItem(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 24, color: Colors.blue.shade600),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _applyImport(
+    Map<int, String> audioMap,
+    Map<String, List<String>> wordData,
+    List<int> importedSlots,
+  ) {
+    final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
+    int audioImported = 0;
+    int wordsImported = 0;
+
+    for (final deret in workspace.derets) {
+      final slot = deret.slotNumber;
+      bool changed = false;
+
+      if (audioMap.containsKey(slot)) {
+        deret.audioFilePath = audioMap[slot];
+        audioImported++;
+        changed = true;
+      }
+
+      final wordKey = 'deret_$slot';
+      if (wordData.containsKey(wordKey)) {
+        final words = wordData[wordKey]!;
+        deret.words.clear();
+        for (final word in words) {
+          final truncated = word.length > 8 ? word.substring(0, 8) : word;
+          deret.words.add(WordEntry(timestampMs: 0, word: truncated));
+        }
+        wordsImported += words.length;
+        changed = true;
+      }
+
+      if (changed) {
+        workspace.updateDeret(deret);
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import Success'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Audio: $audioImported files'),
+            Text('Lyrics: $wordsImported words'),
+            Text('Tracks: ${importedSlots.length} slots'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
           ),
         ],
       ),

@@ -14,7 +14,9 @@ import '../models/deret.dart';
 
 class WorkspaceProvider with ChangeNotifier {
   final List<Deret> _derets = [];
-  int _globalOffsetMs = 150; // Default as per PRD
+  int _globalOffsetMs = 150;
+  Deret? _lastDeletedDeret;
+  int? _lastDeletedIndex;
 
   WorkspaceProvider() {
     _loadSettings();
@@ -67,9 +69,26 @@ class WorkspaceProvider with ChangeNotifier {
   }
 
   void removeDeret(int slotNumber) {
-    _derets.removeWhere((d) => d.slotNumber == slotNumber);
-    notifyListeners();
+    int index = _derets.indexWhere((d) => d.slotNumber == slotNumber);
+    if (index != -1) {
+      _lastDeletedDeret = _derets[index];
+      _lastDeletedIndex = index;
+      _derets.removeAt(index);
+      notifyListeners();
+    }
   }
+
+  void restoreLastDeleted() {
+    if (_lastDeletedDeret != null && _lastDeletedIndex != null) {
+      _derets.insert(_lastDeletedIndex!, _lastDeletedDeret!);
+      _derets.sort((a, b) => a.slotNumber.compareTo(b.slotNumber));
+      _lastDeletedDeret = null;
+      _lastDeletedIndex = null;
+      notifyListeners();
+    }
+  }
+
+  bool get canUndoDelete => _lastDeletedDeret != null;
 
   String buildBulkJson() {
     List<Map<String, dynamic>> payload = _derets

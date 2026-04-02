@@ -13,9 +13,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'providers/workspace_provider.dart';
 import 'providers/ble_provider.dart';
-import 'screens/home_screen.dart';
-import 'screens/settings_screen.dart';
-import 'screens/ble_sync_screen.dart';
+import 'providers/theme_provider.dart';
+import 'screens/main_shell.dart';
 
 void main() {
   runApp(
@@ -23,6 +22,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => WorkspaceProvider()),
         ChangeNotifierProvider(create: (_) => BleProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const LirikSyncApp(),
     ),
@@ -110,9 +110,12 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Lirik Sync V2',
+      themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.blue,
@@ -120,17 +123,18 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
         textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+      ),
       initialRoute: '/',
       onGenerateRoute: (settings) {
-        if (settings.name == '/settings') {
-          return MaterialPageRoute(builder: (_) => const SettingsScreen());
-        }
-        if (settings.name == '/sync') {
-          return MaterialPageRoute(builder: (_) => const BleSyncScreen());
-        }
         return MaterialPageRoute(
           builder: (_) => _initialized
-              ? const HomeScreen()
+              ? const MainShell()
               : PermissionGateScreen(
                   status: _initStatus,
                   permissions: _permissionStatus,
