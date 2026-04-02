@@ -1,16 +1,9 @@
 // Main Entry Point
 //
 // App: Lirik Sync V2
-// Function: Aplikasi Android untuk sinkronisasi data lirik ke ESP32-S3
-// Features:
-// - Workspace: Kelola 10 slot deret
-// - Audio Spike Detection: Deteksi timing dari waveform
-// - BLE Sync: Kirim data ke ESP32 via Bluetooth
-// - Settings: Offset delay kompensasi DFPlayer
-// - Permission check on startup
 //
 // Routes:
-// - '/': HomeScreen (Workspace)
+// - '/': HomeScreen
 // - '/settings': SettingsScreen
 // - '/sync': BleSyncScreen
 
@@ -45,7 +38,7 @@ class LirikSyncApp extends StatefulWidget {
 
 class _LirikSyncAppState extends State<LirikSyncApp> {
   bool _initialized = false;
-  String _initStatus = 'Memeriksa Bluetooth...';
+  String _initStatus = 'Checking Bluetooth...';
   List<String> _permissionStatus = [];
 
   @override
@@ -56,7 +49,7 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
 
   Future<void> _initialize() async {
     try {
-      setState(() => _initStatus = 'Memeriksa Bluetooth...');
+      setState(() => _initStatus = 'Checking Bluetooth...');
       final btAdapterState = await FlutterBluePlus.adapterState.first;
       final btOn = btAdapterState == BluetoothAdapterState.on;
       _permissionStatus.add('Bluetooth: ${btOn ? "ON" : "OFF"}');
@@ -90,11 +83,11 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
           children: [
             Icon(Icons.bluetooth_disabled, color: Colors.red),
             SizedBox(width: 8),
-            Expanded(child: Text('Bluetooth Mati')),
+            Expanded(child: Text('Bluetooth Off')),
           ],
         ),
         content: const Text(
-          'Bluetooth perlu dinyalakan untuk menggunakan fitur sync ke perangkat ESP32.',
+          'Bluetooth needs to be turned on to sync with ESP32 device.',
         ),
         actions: [
           TextButton(
@@ -104,11 +97,11 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
               } catch (e) {}
               Navigator.of(ctx).pop();
             },
-            child: const Text('Nyalakan'),
+            child: const Text('Turn On'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Nanti saja'),
+            child: const Text('Later'),
           ),
         ],
       ),

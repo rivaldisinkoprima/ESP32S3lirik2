@@ -1,11 +1,5 @@
 // Settings Screen
 //
-// Fungsi:
-// - Pengaturan Hardware Delay Offset (-500ms hingga +500ms)
-// - Quick-select chips untuk nilai umum
-// - Reset ke default
-// - Visual indicator positif/negatif
-//
 // Routes: '/settings'
 
 import 'package:flutter/material.dart';
@@ -30,7 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isDefault = offset == _defaultValue;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pengaturan')),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
           Container(
@@ -233,7 +227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 );
                               },
                         icon: const Icon(Icons.restore, size: 18),
-                        label: const Text('Reset ke Default'),
+                        label: const Text('Reset'),
                       ),
                     ),
                   ],

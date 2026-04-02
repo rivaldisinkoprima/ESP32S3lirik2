@@ -1,12 +1,5 @@
 // BLE Sync Screen
 //
-// Fungsi:
-// - Scan device BLE "Lirik S3"
-// - Connect dengan PIN (123456)
-// - Sync All: Kirim semua data deret ke ESP32 via BLE
-// - Factory Reset: Reset ESP32 ke default
-// - Disconnect: Putus koneksi BLE
-//
 // Routes: '/sync'
 
 import 'dart:async';
@@ -58,12 +51,12 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Tidak ada perangkat ditemukan',
+              'No devices found',
               style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
             Text(
-              'Tap tombol scan untuk mencari',
+              'Tap scan button to search',
               style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
             ),
           ],
@@ -78,7 +71,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('Mencari perangkat BLE...'),
+            Text('Searching for BLE devices...'),
           ],
         ),
       );
@@ -238,7 +231,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '$syncedDerets deret siap, $totalWords kata',
+                '$syncedDerets tracks ready, $totalWords words',
                 style: TextStyle(fontSize: 13, color: Colors.blue.shade800),
               ),
             ),
@@ -297,10 +290,10 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         children: [
           _buildStatusHeader(ble),
           if (!ble.isConnected) ...[
-            _buildSectionHeader('PILIH PERANGKAT'),
+            _buildSectionHeader('SELECT DEVICE'),
             Expanded(child: _buildDeviceList(ble)),
           ] else ...[
-            _buildSectionHeader('TERHUBUNG'),
+            _buildSectionHeader('CONNECTED'),
             Expanded(child: _buildConnectedContent(ble, workspace)),
           ],
         ],
@@ -381,7 +374,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 TextButton(
                   onPressed: () async {
                     if (pin.length != 6 || !RegExp(r'^\d{6}$').hasMatch(pin)) {
-                      pinError = 'PIN harus 6 digit angka';
+                      pinError = 'PIN must be 6 digits';
                       setDialogState(() {});
                       return;
                     }
@@ -433,7 +426,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               .take(i + 1)
               .fold<int>(0, (sum, d) => sum + d.words.length);
           _syncProgress = (i + 1) / syncedDerets.length * 0.8;
-          _syncStatus = 'Syncing Deret ${syncedDerets[i].slotNumber}...';
+          _syncStatus = 'Syncing Track ${syncedDerets[i].slotNumber}...';
         });
         await Future.delayed(const Duration(milliseconds: 100));
       }
@@ -447,7 +440,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
 
       setState(() {
         _syncProgress = 1.0;
-        _syncStatus = 'Selesai!';
+        _syncStatus = 'Done!';
       });
 
       await Future.delayed(const Duration(milliseconds: 500));
@@ -455,7 +448,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
-            'Sync berhasil! $_syncedDerets deret, $_syncedWords kata terkirim.',
+            'Sync successful! $_syncedDerets tracks, $_syncedWords words sent.',
           ),
           backgroundColor: Colors.green,
         ),

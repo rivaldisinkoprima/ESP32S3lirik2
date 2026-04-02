@@ -1,12 +1,4 @@
-// Home Screen / Workspace Screen
-//
-// Fungsi:
-// - Menampilkan daftar deret (workspace)
-// - Warning banner dismissible
-// - Bulk import: pilih file audio + JSON dengan multi-select picker
-// - Auto-detect all: jalankan auto spike detection untuk semua deret
-// - Navigasi ke DeretEditorScreen untuk edit kata
-// - Tombol ke Settings dan BLE Sync
+// Home Screen
 //
 // Routes: '/'
 
@@ -194,14 +186,14 @@ class _HomeScreenState extends State<HomeScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Import Berhasil'),
+            title: const Text('Import Success'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Audio: $audioImported file'),
-                Text('Kata: $wordsImported kata'),
-                Text('Deret: ${importedDerets.length} slot'),
+                Text('Lyrics: $wordsImported words'),
+                Text('Tracks: ${importedDerets.length} slot'),
               ],
             ),
             actions: [
@@ -218,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Import gagal: $e'),
+            content: Text('Import failed: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -234,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (deretsWithAudio.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak ada deret dengan audio')),
+        const SnackBar(content: Text('No tracks with audio found')),
       );
       return;
     }
@@ -254,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (ctx, setDialogState) {
           updateDialog = setDialogState;
           return AlertDialog(
-            title: const Text('Auto-Detect All'),
+            title: const Text('Scan All'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -263,10 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   size: 50,
                 ),
                 const SizedBox(height: 16),
-                Text('Memproses deret ke $currentIndex/$totalDerets'),
+                Text('Processing track $currentIndex/$totalDerets'),
                 const SizedBox(height: 8),
                 Text(
-                  '$totalDetected spike terdeteksi',
+                  '$totalDetected words detected',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -274,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Batal'),
+                child: const Text('Cancel'),
               ),
             ],
           );
@@ -339,9 +331,9 @@ class _HomeScreenState extends State<HomeScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Selesai'),
+            title: const Text('Done'),
             content: Text(
-              '$totalDetected spike terdeteksi di ${completedSlots.length} deret',
+              '$totalDetected words detected in ${completedSlots.length} tracks',
             ),
             actions: [
               TextButton(
@@ -383,12 +375,12 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.folder_open),
             onPressed: _bulkImport,
-            tooltip: 'Import file',
+            tooltip: 'Import files',
           ),
           IconButton(
             icon: const Icon(Icons.auto_awesome),
             onPressed: workspace.derets.isEmpty ? null : _autoDetectAll,
-            tooltip: 'Auto-detect all',
+            tooltip: 'Scan all',
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -417,7 +409,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Gunakan file MP3 yang bebas noise',
+                      'Use noise-free MP3 files for best results',
                       style: const TextStyle(
                         color: Colors.brown,
                         fontWeight: FontWeight.bold,
@@ -445,7 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               children: [
                 const Text(
-                  'DAFTAR DERET',
+                  'TRACKS',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -517,12 +509,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         title: Text(
-                          deret.displayTitle ?? 'Deret ${deret.slotNumber}',
+                          deret.displayTitle ?? 'Track ${deret.slotNumber}',
                         ),
                         subtitle: Text(
                           deret.isSynced
-                              ? '${deret.words.length} kata'
-                              : 'Belum disinkronkan',
+                              ? '${deret.words.length} words'
+                              : 'Not synced',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => Navigator.push(
@@ -566,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Belum ada Deret',
+            'No Tracks Yet',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -575,7 +567,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Tap tombol + untuk membuat',
+            'Tap + to create a new track',
             style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
           ),
         ],

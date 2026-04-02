@@ -1,14 +1,6 @@
-// Deret Editor Screen
+// Track Editor Screen
 //
-// Fungsi:
-// - Pilih file MP3 audio
-// - Auto-Detect Spikes: Deteksi timing kata dari waveform
-// - Edit kata (maks 8 karakter) dan timestamp
-// - Preview: Play audio dari timestamp tertentu
-// - Visual: Progress bar dengan marker kata dan auto-scroll
-// - Simpan ke workspace
-//
-// Routes: Via Navigator.push dari HomeScreen
+// Routes: Via Navigator.push from HomeScreen
 
 import 'dart:async';
 import 'dart:convert';
@@ -301,7 +293,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Batal'),
+                    child: const Text('Cancel'),
                   ),
                 ],
               ),
@@ -312,7 +304,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
     );
 
     try {
-      loadingMessage = 'Memproses...';
+      loadingMessage = 'Processing...';
       if (mounted) setState(() {});
       debugPrint('[AUTO_DETECT] Step 3: Getting duration...');
 
@@ -697,7 +689,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Deret ${widget.slotNumber} berhasil disimpan'),
+        content: Text('Track ${widget.slotNumber} saved successfully'),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -749,8 +741,8 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'File tidak mengandung data untuk "$deretKey". '
-              'Pastikan format: {"deret_${widget.slotNumber}": ["KATA1", "KATA2", ...]}',
+              'File does not contain data for "$deretKey". '
+              'Ensure format: {"track_${widget.slotNumber}": ["WORD1", "WORD2", ...]}',
             ),
           ),
         );
@@ -784,7 +776,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${words.length} kata berhasil diimpor ke Deret ${widget.slotNumber}',
+              '${words.length} words imported to Track ${widget.slotNumber}',
             ),
           ),
         );
@@ -793,7 +785,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal membaca file JSON: $e'),
+            content: Text('Failed to read JSON file: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -821,12 +813,12 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Edit Deret ${widget.slotNumber}'),
+          title: Text('Edit Track ${widget.slotNumber}'),
           actions: [
             IconButton(
               icon: const Icon(Icons.check),
               onPressed: _save,
-              tooltip: 'Simpan',
+              tooltip: 'Save',
             ),
           ],
         ),
@@ -837,7 +829,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
               color: Colors.blue.shade800,
               padding: const EdgeInsets.all(12),
               child: const Text(
-                'PILIH AUDIO',
+                'SELECT AUDIO',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -870,7 +862,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Import kata dari file JSON untuk Deret ${widget.slotNumber}',
+                          'Track ${widget.slotNumber}: Import lyrics from JSON file',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade600,
@@ -932,7 +924,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                                   ),
                                 )
                               : const Icon(Icons.auto_awesome),
-                          label: const Text('Auto-Detect Spikes'),
+                          label: const Text('Detect Words'),
                         ),
                       ],
                     ),
@@ -973,7 +965,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                           ElevatedButton.icon(
                             onPressed: _addMissingWords,
                             icon: const Icon(Icons.add, size: 16),
-                            label: const Text('Tambah kata'),
+                            label: const Text('Add Word'),
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -1006,7 +998,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
               color: Colors.blue.shade800,
               padding: const EdgeInsets.all(12),
               child: const Text(
-                'DAFTAR KATA',
+                'WORDS',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
