@@ -573,17 +573,24 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
   void _scrollToActiveWord(int index) {
     if (!_scrollController.hasClients) return;
-    final itemHeight = 56.0;
-    final viewportHeight = _scrollController.position.viewportDimension;
-    final targetOffset = index * itemHeight;
-    final currentOffset = _scrollController.offset;
 
-    if (targetOffset < currentOffset ||
-        targetOffset > currentOffset + viewportHeight - itemHeight) {
+    // Add some padding to prevent scrolling when word is near edges
+    final double viewportPadding = 20.0;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final targetOffset = index * 56.0; // Match item height in build
+    final currentOffset = _scrollController.offset;
+    final maxOffset = _scrollController.position.maxScrollExtent;
+
+    // Only scroll if word is significantly outside viewport
+    if (targetOffset < currentOffset - viewportPadding ||
+        targetOffset > currentOffset + viewportHeight - viewportPadding) {
+      // Ensure we don't scroll beyond bounds
+      final double clampedOffset = targetOffset.clamp(0.0, maxOffset);
+
       _scrollController.animateTo(
-        targetOffset,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+        clampedOffset,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOutCubic, // More responsive than easeInOut
       );
     }
   }
