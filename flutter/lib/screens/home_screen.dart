@@ -4,6 +4,7 @@
 // - Menampilkan daftar deret (workspace)
 // - Warning banner dismissible
 // - Bulk import: pilih file audio + JSON dengan multi-select picker
+// - Auto-detect all: jalankan auto spike detection untuk semua deret
 // - Navigasi ke DeretEditorScreen untuk edit kata
 // - Tombol ke Settings dan BLE Sync
 //
@@ -12,11 +13,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:audio_waveforms/audio_waveforms.dart';
 import '../providers/workspace_provider.dart';
 import '../models/word_entry.dart';
+import '../services/spike_detector.dart';
 import 'deret_editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -53,7 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _bulkImport() async {
-    // Multi-select file picker
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -64,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     debugPrint('[BULK_IMPORT] Selected ${result.files.length} files');
 
-    // Show loading dialog
     if (!mounted) return;
     showDialog(
       context: context,
@@ -87,77 +89,54 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     try {
-      // Process selected files
-      final audioMap = <int, String>{}; // slotNumber -> path
+      final audioMap = <int, String>{};
       PlatformFile? jsonFile;
 
       for (final file in result.files) {
         final name = file.name.toLowerCase();
         debugPrint('[BULK_IMPORT] Processing: ${file.name}');
 
-        // Check for JSON file
         if (name.endsWith('.json')) {
           jsonFile = file;
-          debugPrint('[BULK_IMPORT] Found JSON: ${file.name}');
         }
 
-        // Check for MP3 files with pattern like "001.mp3"
         if (name.endsWith('.mp3')) {
           final match = RegExp(r'^(\d{3})\.mp3$').firstMatch(name);
           if (match != null) {
             final num = int.parse(match.group(1)!);
             if (num >= 1 && num <= 10) {
               audioMap[num] = file.path!;
-              debugPrint('[BULK_IMPORT] Audio slot $num: ${file.name}');
             }
           }
         }
       }
 
-      debugPrint('[BULK_IMPORT] audioMap: $audioMap');
-
-      // Parse JSON data
       Map<String, List<String>> wordData = {};
       if (jsonFile != null) {
-        debugPrint('[BULK_IMPORT] JSON file: ${jsonFile.name}');
-        debugPrint(
-          '[BULK_IMPORT] JSON bytes: ${jsonFile.bytes?.length ?? "null"}',
-        );
-        debugPrint('[BULK_IMPORT] JSON path: ${jsonFile.path ?? "null"}');
+        debugPrint('[BULK_IMPORT] JSON file found: ${jsonFile.name}');
 
-        // Try to read JSON from bytes first, if not available try from path
         try {
           List<int>? bytes = jsonFile.bytes;
-          String content;
+          String? content;
 
+          // Try bytes first
           if (bytes != null && bytes.isNotEmpty) {
             content = String.fromCharCodes(bytes);
-            debugPrint(
-              '[BULK_IMPORT] Read JSON from bytes, length: ${bytes.length}',
-            );
-          } else if (jsonFile.path != null && jsonFile.path!.isNotEmpty) {
+            debugPrint('[BULK_IMPORT] Read JSON from bytes');
+          } else if (jsonFile.path != null) {
             // Fallback: read from file path
             final file = File(jsonFile.path!);
             if (await file.exists()) {
               content = await file.readAsString();
-              debugPrint('[BULK_IMPORT] Read JSON from path');
-            } else {
-              debugPrint('[BULK_IMPORT] JSON file not found at path');
-              content = '';
+              debugPrint('[BULK_IMPORT] Read JSON from path: ${jsonFile.path}');
             }
-          } else {
-            debugPrint('[BULK_IMPORT] No JSON source available');
-            content = '';
           }
 
-          if (content.isNotEmpty) {
-            debugPrint(
-              '[BULK_IMPORT] JSON content preview: ${content.substring(0, content.length > 100 ? 100 : content.length)}',
-            );
+          if (content != null && content.isNotEmpty) {
             final data = jsonDecode(content) as Map<String, dynamic>;
+            debugPrint('[BULK_IMPORT] JSON keys: ${data.keys.toList()}');
             for (final entry in data.entries) {
               final key = entry.key.toLowerCase();
-              debugPrint('[BULK_IMPORT] JSON key found: $key');
               if (key.startsWith('deret_') && entry.value is List) {
                 final slotNum = int.tryParse(key.replaceAll('deret_', ''));
                 if (slotNum != null && slotNum >= 1 && slotNum <= 10) {
@@ -165,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       .map((e) => e.toString())
                       .toList();
                   debugPrint(
-                    '[BULK_IMPORT] Words for deret_$slotNum: ${wordData['deret_$slotNum']?.length}',
+                    '[BULK_IMPORT] Slot $slotNum: ${wordData['deret_$slotNum']?.length} words',
                   );
                 }
               }
@@ -174,13 +153,8 @@ class _HomeScreenState extends State<HomeScreen> {
         } catch (e) {
           debugPrint('[BULK_IMPORT] JSON parse error: $e');
         }
-      } else {
-        debugPrint('[BULK_IMPORT] No JSON file selected');
       }
 
-      debugPrint('[BULK_IMPORT] wordData keys: ${wordData.keys.toList()}');
-
-      // Update workspace
       final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
       int audioImported = 0;
       int wordsImported = 0;
@@ -190,14 +164,12 @@ class _HomeScreenState extends State<HomeScreen> {
         final slot = deret.slotNumber;
         bool changed = false;
 
-        // Import audio
         if (audioMap.containsKey(slot)) {
           deret.audioFilePath = audioMap[slot];
           audioImported++;
           changed = true;
         }
 
-        // Import words from JSON
         final wordKey = 'deret_$slot';
         if (wordData.containsKey(wordKey)) {
           final words = wordData[wordKey]!;
@@ -216,12 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      debugPrint(
-        '[BULK_IMPORT] Result: audio=$audioImported, words=$wordsImported, derets=${importedDerets.length}',
-      );
-
       if (mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
+        Navigator.of(context).pop();
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -233,13 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text('Audio: $audioImported file'),
                 Text('Kata: $wordsImported kata'),
                 Text('Deret: ${importedDerets.length} slot'),
-                if (importedDerets.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Slot: ${importedDerets.join(', ')}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
               ],
             ),
             actions: [
@@ -264,6 +225,150 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _autoDetectAll() async {
+    final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
+    final deretsWithAudio = workspace.derets
+        .where((d) => d.audioFilePath != null && d.audioFilePath!.isNotEmpty)
+        .toList();
+
+    if (deretsWithAudio.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada deret dengan audio')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    int currentIndex = 0;
+    int totalDetected = 0;
+    final completedSlots = <int>[];
+    final totalDerets = deretsWithAudio.length;
+
+    void Function(void Function())? updateDialog;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          updateDialog = setDialogState;
+          return AlertDialog(
+            title: const Text('Auto-Detect All'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  value: totalDerets > 0 ? currentIndex / totalDerets : 0,
+                ),
+                const SizedBox(height: 16),
+                Text('Memproses deret ke $currentIndex/$totalDerets'),
+                const SizedBox(height: 8),
+                Text(
+                  '$totalDetected spike terdeteksi',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Batal'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    try {
+      for (int i = 0; i < deretsWithAudio.length; i++) {
+        if (!mounted) break;
+
+        final deret = deretsWithAudio[i];
+        final audioPath = deret.audioFilePath!;
+        currentIndex = i + 1;
+        updateDialog?.call(() {});
+
+        try {
+          final controller = PlayerController();
+          await controller.preparePlayer(
+            path: audioPath,
+            shouldExtractWaveform: false,
+          );
+
+          final duration = await controller.getDuration();
+          if (duration > 0) {
+            final noOfSamples = duration < 30000
+                ? 3000
+                : (duration < 120000 ? 2000 : 1000);
+
+            final extractor = WaveformExtractionController();
+            final waveformData = await extractor.extractWaveformData(
+              path: audioPath,
+              noOfSamples: noOfSamples,
+            );
+
+            final detectedTimes = await compute(_detectSpikesIsolate, {
+              'waveformData': waveformData,
+              'totalDurationMs': duration,
+              'minGapMs': 600,
+              'threshold': 0.015,
+            });
+
+            deret.words.clear();
+            for (final ts in detectedTimes) {
+              deret.words.add(WordEntry(timestampMs: ts, word: ''));
+            }
+            deret.isSynced = true;
+            workspace.updateDeret(deret);
+
+            totalDetected += detectedTimes.length;
+            completedSlots.add(deret.slotNumber);
+            updateDialog?.call(() {});
+          }
+          controller.dispose();
+        } catch (e) {
+          debugPrint('[AUTO_DETECT] Error: $e');
+        }
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Selesai'),
+            content: Text(
+              '$totalDetected spike terdeteksi di ${completedSlots.length} deret',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  static List<int> _detectSpikesIsolate(Map<String, dynamic> params) {
+    return SpikeDetector.detect(
+      waveformData: List<double>.from(params['waveformData'] as List),
+      totalDurationMs: params['totalDurationMs'] as int,
+      minGapMs: params['minGapMs'] as int,
+      threshold: (params['threshold'] as num).toDouble(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final workspace = Provider.of<WorkspaceProvider>(context);
@@ -277,6 +382,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.folder_open),
             onPressed: _bulkImport,
             tooltip: 'Import file',
+          ),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            onPressed: workspace.derets.isEmpty ? null : _autoDetectAll,
+            tooltip: 'Auto-detect all',
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -294,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               width: double.infinity,
               color: Colors.amber.shade100,
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
                   const Icon(
@@ -390,82 +500,35 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: workspace.derets.length,
                     itemBuilder: (context, index) {
                       final deret = workspace.derets[index];
-                      return Dismissible(
-                        key: ValueKey(deret.slotNumber),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          color: Colors.red.shade400,
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 16),
-                          child: const Icon(Icons.delete, color: Colors.white),
-                        ),
-                        confirmDismiss: (direction) async {
-                          return await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Hapus Deret?'),
-                              content: Text(
-                                'Hapus Deret ${deret.slotNumber}? Tindakan ini tidak bisa dibatalkan.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Batal'),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: const Text(
-                                    'Hapus',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        onDismissed: (direction) {
-                          workspace.removeDeret(deret.slotNumber);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Deret ${deret.slotNumber} dihapus',
-                              ),
-                            ),
-                          );
-                        },
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: deret.isSynced
-                                ? Colors.green.shade100
-                                : Colors.grey.shade200,
-                            child: Icon(
-                              deret.isSynced
-                                  ? Icons.check_circle
-                                  : Icons.circle_outlined,
-                              color: deret.isSynced
-                                  ? Colors.green
-                                  : Colors.grey.shade400,
-                            ),
-                          ),
-                          title: Text(
-                            deret.displayTitle ?? 'Deret ${deret.slotNumber}',
-                          ),
-                          subtitle: Text(
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: deret.isSynced
+                              ? Colors.green.shade100
+                              : Colors.grey.shade200,
+                          child: Icon(
                             deret.isSynced
-                                ? '${deret.words.length} kata'
-                                : 'Belum disinkronkan',
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            color: deret.isSynced
+                                ? Colors.green
+                                : Colors.grey.shade400,
                           ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DeretEditorScreen(
-                                  slotNumber: deret.slotNumber,
-                                ),
-                              ),
-                            );
-                          },
+                        ),
+                        title: Text(
+                          deret.displayTitle ?? 'Deret ${deret.slotNumber}',
+                        ),
+                        subtitle: Text(
+                          deret.isSynced
+                              ? '${deret.words.length} kata'
+                              : 'Belum disinkronkan',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                DeretEditorScreen(slotNumber: deret.slotNumber),
+                          ),
                         ),
                       );
                     },
