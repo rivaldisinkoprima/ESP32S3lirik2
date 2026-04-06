@@ -132,15 +132,19 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
       },
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
-        brightness: Brightness.light,
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.light,
+        ),
         useMaterial3: true,
         textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       ),
       darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
         textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
@@ -176,7 +180,7 @@ class PermissionGateScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -191,7 +195,7 @@ class PermissionGateScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(AppLocalizations.of(context)?.translate(status) ?? status, style: const TextStyle(color: Colors.grey)),
+                Text(AppLocalizations.of(context)?.translate(status) ?? status, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 if (permissions.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   const Divider(),

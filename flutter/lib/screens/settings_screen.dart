@@ -33,12 +33,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Container(
             width: double.infinity,
-            color: Colors.blue.shade800,
+            color: Theme.of(context).colorScheme.primaryContainer,
             padding: const EdgeInsets.all(12),
             child: Text(
               AppLocalizations.of(context)?.translate('delayOffset') ?? 'DELAY OFFSET',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -66,8 +66,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: isPositive
-                            ? Colors.green.shade100
-                            : Colors.red.shade100,
+                            ? Theme.of(context).colorScheme.secondaryContainer
+                            : Theme.of(context).colorScheme.errorContainer,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -76,8 +76,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                           color: isPositive
-                              ? Colors.green.shade800
-                              : Colors.red.shade800,
+                              ? Theme.of(context).colorScheme.onSecondaryContainer
+                              : Theme.of(context).colorScheme.onErrorContainer,
                         ),
                       ),
                     ),
@@ -86,7 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 8),
                 Text(
                   AppLocalizations.of(context)?.translate('hardwareDelayDesc') ?? 'Digunakan untuk kompensasi delay DFPlayer',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -119,13 +119,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       overlayRadius: 24,
                     ),
                     activeTrackColor: isPositive ? Colors.green : Colors.red,
-                    inactiveTrackColor: Colors.grey.shade200,
+                    inactiveTrackColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                     thumbColor: isPositive ? Colors.green : Colors.red,
                     overlayColor: (isPositive ? Colors.green : Colors.red)
                         .withAlpha(32),
-                    valueIndicatorColor: Colors.blue.shade800,
-                    valueIndicatorTextStyle: const TextStyle(
-                      color: Colors.white,
+                    valueIndicatorColor: Theme.of(context).colorScheme.primary,
+                    valueIndicatorTextStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
                     ),
                   ),
                   child: Slider(
@@ -146,14 +146,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       '-500ms',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     Text(
                       '+500ms',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade500,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -173,8 +173,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       label: Text('${val > 0 ? '+' : ''}$val'),
                       selected: isSelected,
                       selectedColor: val >= 0
-                          ? Colors.green.shade100
-                          : Colors.red.shade100,
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : Theme.of(context).colorScheme.errorContainer,
                       onSelected: (_) {
                         workspace.setGlobalOffset(val);
                       },
@@ -184,9 +184,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             : FontWeight.normal,
                         color: isSelected
                             ? (val >= 0
-                                  ? Colors.green.shade800
-                                  : Colors.red.shade800)
-                            : Colors.black87,
+                                  ? Theme.of(context).colorScheme.onSecondaryContainer
+                                  : Theme.of(context).colorScheme.onErrorContainer)
+                            : Theme.of(context).colorScheme.onSurface,
                       ),
                     );
                   }).toList(),
@@ -242,12 +242,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(height: 32),
           Container(
             width: double.infinity,
-            color: Colors.blue.shade800,
+            color: Theme.of(context).colorScheme.primaryContainer,
             padding: const EdgeInsets.all(12),
             child: Text(
               AppLocalizations.of(context)?.translate('appearance') ?? 'APPEARANCE',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -277,12 +277,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(height: 32),
           Container(
             width: double.infinity,
-            color: Colors.blue.shade800,
+            color: Theme.of(context).colorScheme.primaryContainer,
             padding: const EdgeInsets.all(12),
             child: Text(
               AppLocalizations.of(context)?.translate('languageCaps') ?? 'LANGUAGE',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),

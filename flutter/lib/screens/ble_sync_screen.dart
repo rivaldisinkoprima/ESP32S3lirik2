@@ -28,12 +28,12 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
   Widget _buildSectionHeader(String title) {
     return Container(
       width: double.infinity,
-      color: Colors.blue.shade800,
+      color: Theme.of(context).colorScheme.primaryContainer,
       padding: const EdgeInsets.all(12),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),
@@ -50,17 +50,17 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             Icon(
               Icons.bluetooth_searching,
               size: 60,
-              color: Colors.grey.shade300,
+              color: Theme.of(context).colorScheme.outlineVariant,
             ),
             const SizedBox(height: 16),
             Text(
               _l10n?.translate('noDevicesFound') ?? 'No devices found',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
             Text(
               _l10n?.translate('tapScanToSearch') ?? 'Tap scan button to search',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -115,15 +115,15 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
+                    color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     _l10n?.translate('target') ?? 'TARGET',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
                   ),
                 ),
@@ -139,7 +139,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                   (i) => Icon(
                     Icons.signal_cellular_alt,
                     size: 14,
-                    color: i < signalBars ? Colors.green : Colors.grey.shade300,
+                    color: i < signalBars ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
                   ),
                 ),
               ),
@@ -196,7 +196,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               const SizedBox(height: 8),
               Text(
                 _l10n?.translate('syncingTrackDetail', ['$_syncedDerets', '$_syncedWords']) ?? '$_syncedDerets deret, $_syncedWords kata',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -230,12 +230,13 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: Theme.of(context).colorScheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 _l10n?.translate('syncSuccessful', ['$syncedDerets', '$totalWords']) ?? '$syncedDerets tracks ready, $totalWords words',
-                style: TextStyle(fontSize: 13, color: Colors.blue.shade800),
+                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSecondaryContainer),
+                textAlign: TextAlign.center,
               ),
             ),
             const SizedBox(height: 32),

@@ -868,12 +868,12 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
             children: [
               Container(
                 width: double.infinity,
-                color: Colors.blue.shade800,
+                color: Theme.of(context).colorScheme.primaryContainer,
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   _l10n?.translate('selectAudio') ?? 'SELECT AUDIO',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -907,7 +907,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                             _l10n?.translate('importLyricsDesc', ['${widget.slotNumber}']) ?? 'Track ${widget.slotNumber}: Import lyrics from JSON file',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade600,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -976,13 +976,13 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                 ),
               if (_isLoadingWaveform)
                 Shimmer.fromColors(
-                  baseColor: Colors.grey.shade300,
-                  highlightColor: Colors.grey.shade100,
+                  baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  highlightColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                   child: Container(
                     height: 60,
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -992,20 +992,20 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                   _detectedSpikesCount != _wordControllers.length)
                 Container(
                   width: double.infinity,
-                  color: Colors.orange.shade100,
+                  color: Theme.of(context).colorScheme.errorContainer,
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.warning_amber, color: Colors.orange),
+                          Icon(Icons.warning_amber, color: Theme.of(context).colorScheme.onErrorContainer),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _l10n?.translate('spikeWordMismatch', ['$_detectedSpikesCount', '${_wordControllers.length}']) ?? 'Spike ($_detectedSpikesCount) != Words (${_wordControllers.length})',
-                              style: const TextStyle(
-                                color: Colors.orange,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onErrorContainer,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1050,12 +1050,12 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
               const Divider(),
               Container(
                 width: double.infinity,
-                color: Colors.blue.shade800,
+                color: Theme.of(context).colorScheme.primaryContainer,
                 padding: const EdgeInsets.all(12),
-                child: const Text(
+                child: Text(
                   'WORDS',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -1068,7 +1068,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                   itemBuilder: (context, index) {
                     final isActive = _currentPlayingIndex == index;
                     return Container(
-                      color: isActive ? Colors.yellow.withAlpha(77) : null,
+                      color: isActive ? Theme.of(context).colorScheme.tertiaryContainer.withAlpha(100) : null,
                       child: ListTile(
                         dense: true,
                         contentPadding: const EdgeInsets.symmetric(

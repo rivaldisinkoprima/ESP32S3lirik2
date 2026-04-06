@@ -303,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 Text(
                   _l10n?.translate('wordsDetected', ['$totalDetected']) ?? '$totalDetected words detected',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -475,31 +475,31 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_showWarning)
             Container(
               width: double.infinity,
-              color: Colors.amber.shade100,
+              color: Theme.of(context).colorScheme.tertiaryContainer,
               padding: const EdgeInsets.all(8),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.warning_amber,
-                    color: Colors.brown,
+                    color: Theme.of(context).colorScheme.onTertiaryContainer,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       l10n?.translate('noiseWarning') ?? 'Use noise-free MP3 files for best results',
-                      style: const TextStyle(
-                        color: Colors.brown,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onTertiaryContainer,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       size: 18,
-                      color: Colors.brown,
+                      color: Theme.of(context).colorScheme.onTertiaryContainer,
                     ),
                     onPressed: _dismissWarning,
                     padding: EdgeInsets.zero,
@@ -510,14 +510,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           Container(
             width: double.infinity,
-            color: Colors.blue.shade800,
+            color: Theme.of(context).colorScheme.primaryContainer,
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 Text(
                   l10n?.translate('tracksAllCaps') ?? 'TRACKS',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -529,13 +529,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(77),
+                    color: Theme.of(context).colorScheme.onPrimaryContainer.withAlpha(50),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     l10n?.translate('tracksSlotsCount', ['${workspace.derets.length}']) ?? '${workspace.derets.length} slots',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -549,13 +549,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade300,
+                      color: Theme.of(context).colorScheme.secondaryContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       l10n?.translate('syncedCount', ['$syncedCount']) ?? '$syncedCount synced',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSecondaryContainer,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -575,15 +575,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: deret.isSynced
-                              ? Colors.green.shade100
-                              : Colors.grey.shade200,
+                              ? Theme.of(context).colorScheme.secondaryContainer
+                              : Theme.of(context).colorScheme.surfaceContainerHighest,
                           child: Icon(
                             deret.isSynced
                                 ? Icons.check_circle
                                 : Icons.circle_outlined,
                             color: deret.isSynced
-                                ? Colors.green
-                                : Colors.grey.shade400,
+                                ? Theme.of(context).colorScheme.onSecondaryContainer
+                                : Theme.of(context).colorScheme.outline,
                           ),
                         ),
                         title: Text(
@@ -632,7 +632,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(
             Icons.playlist_add_circle,
             size: 80,
-            color: Colors.grey.shade300,
+            color: Theme.of(context).colorScheme.outlineVariant,
           ),
           const SizedBox(height: 16),
           Text(
@@ -640,13 +640,13 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             _l10n?.translate('tapPlusToCreate') ?? 'Tap + to create a new track',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -658,7 +658,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 24, color: Colors.blue.shade600),
+          Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -670,7 +670,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
