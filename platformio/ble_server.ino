@@ -77,19 +77,12 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         
         if (value.length() > 0) {
             String data = String(value.c_str());
-            Serial.print("[BLE-RX] Chunk received: ");
-            Serial.print(data.length());
-            Serial.print(" bytes | Buffer total: ");
-            Serial.print(bleBuffer.length() + data.length());
-            Serial.println(" bytes");
-            
             bleBuffer += data;
             
             int eofPos = bleBuffer.indexOf("[EOF]");
             if (eofPos != -1) {
                 String payload = bleBuffer.substring(0, eofPos);
                 bleBuffer = bleBuffer.substring(eofPos + 5);
-                
                 Serial.println("[BLE-RX] ---- [EOF] DETECTED ----");
                 
                 if (newPayloadAvailable.load()) {
@@ -102,6 +95,22 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         }
     }
 };
+
+// Task Khusus FreeRTOS untuk memproses BLE (Memiliki Stack 8192 bytes sendiri)
+void bleWorkerTask(void *pvParameters) {
+    for(;;) {
+        if (newPayloadAvailable.load()) {
+            newPayloadAvailable.store(false);
+            
+            String tempPayload = payloadToProcess;
+            payloadToProcess = ""; // Clear buffer
+            
+            parseBlePayload(tempPayload);
+        }
+        vTaskDelay(20 / portTICK_PERIOD_MS); // Istirahat 20ms agar tidak memenuhi CPU
+    }
+}
+
 
 void initBLE() {
     Serial.println("[BLE] ========================================");
@@ -141,37 +150,26 @@ void initBLE() {
     BLEDevice::startAdvertising();
     
     Serial.println("[BLE]   Advertising started");
-    Serial.println("[BLE] Server READY - Waiting for connections...");
-    Serial.println("[BLE] ========================================");
+    
+    // Spawn FreeRTOS Task untuk Background Processing (Stack: 8KB, Priority: 1, Core: 1)
+    xTaskCreatePinnedToCore(
+        bleWorkerTask,    // Fungsi Task
+        "BLE_Worker",     // Nama Task
+        8192,             // Ukuran Stack (Bytes)
+        NULL,             // Parameter
+        1,                // Prioritas
+        NULL,             // Task Handle
+        1                 // Jalankan di Core 1 (sama dengan loop utama)
+    );
+    Serial.println("[BLE]   Background Worker Task Started");
 }
 
 // Dipanggil di main loop() - proses data BLE yang masuk
 void handleBLE() {
-    static uint32_t lastTrace = 0;
-    if (millis() - lastTrace >= 5000) {
-        lastTrace = millis();
-        Serial.print("[BLE-TRACE] handleBLE is active. Flag Status: ");
-        Serial.println(newPayloadAvailable.load() ? "TRUE" : "FALSE");
-    }
-
-    if (newPayloadAvailable.load()) {
-        newPayloadAvailable.store(false);
-        
-        Serial.print("[BLE-LOOP] Processing data. Size: ");
-        Serial.print(payloadToProcess.length());
-        Serial.println(" bytes.");
-        
-        parseBlePayload(payloadToProcess);
-        
-        payloadToProcess = "";
-    }
+    // Fungsi ini tidak dipakai lagi karena data diproses oleh bleWorkerTask
 }
 
 void parseBlePayload(const String& payload) {
-    Serial.println("[BLE-PARSE] --- Begin JSON parsing ---");
-    Serial.print("[BLE-PARSE] Raw Payload: ");
-    Serial.println(payload);
-    
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
     
@@ -185,45 +183,29 @@ void parseBlePayload(const String& payload) {
     // Cek perintah via key "c"
     if (!doc["c"].isNull()) {
         String command = doc["c"].as<String>();
-        Serial.print("[BLE-PARSE] Command key 'c' found: ");
-        Serial.println(command);
-
         if (command == "reset") {
-            Serial.println("[BLE-PARSE] >> Executing FACTORY RESET...");
+            Serial.println("[BLE-CMD] Factory Reset initiated");
             factoryReset();
             notifyStatus("OK:RESET");
             return;
         }
-        
         if (command == "check") {
-            Serial.println("[BLE-PARSE] >> Executing CHECK STORAGE...");
+            Serial.println("[BLE-CMD] Check Storage initiated");
             sendCheckPayload();
             return;
         }
     }
-    
-    // Jika bukan command, proses sebagai data lirik (Array atau Object)
-    Serial.println("[BLE-PARSE] Not a command, processing as lyric data...");
     
     int successCount = 0;
     int failCount = 0;
     
     if (doc.is<JsonArray>()) {
         JsonArray array = doc.as<JsonArray>();
-        Serial.print("[BLE-PARSE] Bulk payload detected: ");
-        Serial.print(array.size());
-        Serial.println(" derets");
-        
-        int idx = 0;
         for (JsonObject deret : array) {
-            Serial.print("[BLE-PARSE]   Processing item ");
-            Serial.println(idx + 1);
             if (processDeret(deret)) successCount++;
             else failCount++;
-            idx++;
         }
     } else if (doc.is<JsonObject>()) {
-        Serial.println("[BLE-PARSE] Single object payload detected");
         if (processDeret(doc.as<JsonObject>())) successCount++;
         else failCount++;
     }
@@ -232,10 +214,7 @@ void parseBlePayload(const String& payload) {
     String statusMsg = "OK:" + String(successCount) + "/" + String(successCount + failCount);
     notifyStatus(statusMsg.c_str());
     
-    // Debug: List semua file setelah proses
-    Serial.println("[BLE-PARSE] --- Post-process file listing ---");
     listLirikFiles();
-    Serial.println("[BLE-PARSE] --- End parsing ---");
 }
 
 bool processDeret(JsonObject deret) {

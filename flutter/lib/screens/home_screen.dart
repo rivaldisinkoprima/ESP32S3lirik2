@@ -569,37 +569,60 @@ class _HomeScreenState extends State<HomeScreen> {
             child: workspace.derets.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
+                    padding: const EdgeInsets.only(top: 12, bottom: 88, left: 16, right: 16),
                     itemCount: workspace.derets.length,
                     itemBuilder: (context, index) {
                       final deret = workspace.derets[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: deret.isSynced
-                              ? Theme.of(context).colorScheme.secondaryContainer
-                              : Theme.of(context).colorScheme.surfaceContainerHighest,
-                          child: Icon(
-                            deret.isSynced
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            color: deret.isSynced
-                                ? Theme.of(context).colorScheme.onSecondaryContainer
-                                : Theme.of(context).colorScheme.outline,
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 1,
+                        shadowColor: Colors.black.withOpacity(0.05),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DeretEditorScreen(slotNumber: deret.slotNumber),
+                            ),
                           ),
-                        ),
-                        title: Text(
-                          deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
-                        ),
-                        subtitle: Text(
-                          deret.isSynced
-                              ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
-                              : l10n?.translate('notSynced') ?? 'Not synced',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                DeretEditorScreen(slotNumber: deret.slotNumber),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+                            child: ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: deret.isSynced
+                                      ? Theme.of(context).colorScheme.secondaryContainer
+                                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  deret.isSynced
+                                      ? Icons.check_circle_rounded
+                                      : Icons.music_note_rounded,
+                                  color: deret.isSynced
+                                      ? Theme.of(context).colorScheme.onSecondaryContainer
+                                      : Theme.of(context).colorScheme.outline,
+                                  size: 24,
+                                ),
+                              ),
+                              title: Text(
+                                deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                deret.isSynced
+                                    ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
+                                    : l10n?.translate('notSynced') ?? 'Not synced',
+                                style: TextStyle(
+                                  color: deret.isSynced ? Colors.green.shade600 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontWeight: deret.isSynced ? FontWeight.w500 : FontWeight.normal,
+                                ),
+                              ),
+                              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.outlineVariant),
+                            ),
                           ),
                         ),
                       );
@@ -608,7 +631,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
         onPressed: () {
           workspace.addDeret();
           final newSlot = workspace.derets.last.slotNumber;
@@ -619,7 +646,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
+        label: Text(l10n?.translate('Add') ?? 'New Track', style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
   }

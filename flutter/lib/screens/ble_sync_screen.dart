@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../providers/ble_provider.dart';
 import '../providers/workspace_provider.dart';
 import '../l10n/app_localizations.dart';
@@ -108,65 +109,143 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         final isTarget =
             name.toLowerCase().contains('lirik') ||
             name.toLowerCase().contains('s3');
-        final signalBars = rssi >= -60 ? 3 : (rssi >= -75 ? 2 : 1);
+        // Define signal strength variables
+        Color signalColor;
+        String signalText;
+        if (rssi >= -60) {
+            signalColor = Colors.green;
+            signalText = 'Excellent';
+        } else if (rssi >= -75) {
+            signalColor = Colors.lightGreen;
+            signalText = 'Good';
+        } else if (rssi >= -85) {
+            signalColor = Colors.orange;
+            signalText = 'Fair';
+        } else {
+            signalColor = Colors.grey;
+            signalText = 'Weak';
+        }
 
-        return ListTile(
-          leading: Icon(
-            Icons.bluetooth,
-            color: isTarget ? Colors.green : Colors.grey,
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+             borderRadius: BorderRadius.circular(16),
+             side: BorderSide(
+               color: isTarget ? Colors.green.withOpacity(0.3) : Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+               width: isTarget ? 1.5 : 1.0,
+             )
           ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontWeight: isTarget ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ),
-              if (isTarget)
+          color: isTarget ? Colors.green.withOpacity(0.05) : Theme.of(context).colorScheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                // Icon Section
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(4),
+                    color: isTarget ? Colors.green.withOpacity(0.2) : Theme.of(context).colorScheme.surfaceContainerHighest,
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    _l10n?.translate('target') ?? 'TARGET',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
+                  child: Icon(
+                    isTarget ? Icons.bluetooth_connected_rounded : Icons.bluetooth_rounded,
+                    color: isTarget ? Colors.green.shade700 : Theme.of(context).colorScheme.outline,
+                    size: 24,
                   ),
                 ),
-            ],
-          ),
-          subtitle: Row(
-            children: [
-              Expanded(child: Text(result.device.remoteId.toString())),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(
-                  3,
-                  (i) => Icon(
-                    Icons.signal_cellular_alt,
-                    size: 14,
-                    color: i < signalBars ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                const SizedBox(width: 12),
+                
+                // Details Section
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontWeight: isTarget ? FontWeight.bold : FontWeight.w600,
+                                fontSize: 16,
+                                color: isTarget ? Colors.green.shade800 : Theme.of(context).colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isTarget) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                _l10n?.translate('target') ?? 'TARGET',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        result.device.remoteId.toString(),
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 8),
+                      // Modern Signal Indicator
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: signalColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(shape: BoxShape.circle, color: signalColor),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  signalText,
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: signalColor),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('$rssi dBm', style: TextStyle(fontSize: 11, color: signalColor, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text('$rssi dBm', style: const TextStyle(fontSize: 11)),
-            ],
-          ),
-          trailing: ElevatedButton(
-            onPressed: () => _showPinDialog(context, ble, result.device),
-            child: Text(_l10n?.translate('connect') ?? 'Connect'),
+                
+                // Action Section
+                ElevatedButton(
+                  onPressed: () => _showPinDialog(context, ble, result.device),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isTarget ? Colors.green : Theme.of(context).colorScheme.primaryContainer,
+                    foregroundColor: isTarget ? Colors.white : Theme.of(context).colorScheme.onPrimaryContainer,
+                    elevation: isTarget ? 2 : 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(_l10n?.translate('connect') ?? 'Connect'),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -184,35 +263,30 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               SizedBox(
                 width: 60,
                 height: 60,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: _syncProgress,
-                      strokeWidth: 6,
-                    ),
-                    Text(
-                      '${(_syncProgress * 100).toInt()}%',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                child: LoadingAnimationWidget.inkDrop(
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 50,
                 ),
               ),
               Text(
                 _syncStatus,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              Text(
-                _l10n?.translate('syncingTrackDetail', ['$_syncedDerets', '$_syncedWords']) ?? '$_syncedDerets deret, $_syncedWords kata',
-                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                 decoration: BoxDecoration(
+                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                   borderRadius: BorderRadius.circular(20),
+                 ),
+                 child: Text(
+                  _l10n?.translate('syncingTrackDetail', ['$_syncedDerets', '$_syncedWords']) ?? '$_syncedDerets deret, $_syncedWords kata',
+                  style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+                ),
               ),
               if (ble.lastStatus.isNotEmpty) ...[
                 const SizedBox(height: 16),
@@ -246,103 +320,185 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       (sum, d) => sum + d.words.length,
     );
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.check_circle_outline,
-              size: 80,
-              color: Colors.green,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '${_l10n?.translate('connectedStatus') ?? 'Connected'} to ${ble.connectedDevice?.platformName}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                _l10n?.translate('syncSuccessful', ['${syncedDerets.length}', '$totalWords']) ?? '${syncedDerets.length} tracks ready, $totalWords words',
-                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSecondaryContainer),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            if (ble.lastStatus.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Last Device Status: ${ble.lastStatus}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Device Header Card
+              Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                               color: Colors.black.withOpacity(0.05),
+                               blurRadius: 10,
+                               spreadRadius: 2,
+                            )
+                          ]
+                        ),
+                        child: const Icon(
+                          Icons.device_hub_rounded,
+                          size: 48,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '${_l10n?.translate('connectedStatus') ?? 'Connected'} to',
+                        style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      Text(
+                        ble.connectedDevice?.platformName ?? 'ESP32 Device',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _l10n?.translate('syncSuccessful', ['${syncedDerets.length}', '$totalWords']) ?? '${syncedDerets.length} tracks ready, $totalWords words',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+              
+              if (ble.lastStatus.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ble.lastStatus.startsWith('OK') ? Colors.green.withAlpha(20) : Colors.red.withAlpha(20),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: ble.lastStatus.startsWith('OK') ? Colors.green.withAlpha(50) : Colors.red.withAlpha(50)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                         ble.lastStatus.startsWith('OK') ? Icons.check_circle : Icons.error,
+                         color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
+                         size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ble.lastStatus,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ble.lastStatus.startsWith('OK') ? Colors.green.shade700 : Colors.red.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                ),
+              ],
+
+              const SizedBox(height: 40),
+              
+              // Action Buttons
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Primary Action
+                  ElevatedButton(
+                    onPressed: syncedDerets.isEmpty
+                        ? null
+                        : () => _startSync(ble, workspace),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      elevation: 4,
+                      shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.cloud_upload_rounded),
+                        const SizedBox(width: 8),
+                        Text(
+                          _l10n?.translate('syncAllToDevice') ?? 'Sync All to Device',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Secondary Actions Row
+                  Row(
+                    children: [
+                       Expanded(
+                         child: OutlinedButton.icon(
+                           onPressed: ble.isChecking ? null : () => _triggerCheck(ble),
+                           icon: ble.isChecking
+                               ? const SizedBox(
+                                   width: 16,
+                                   height: 16,
+                                   child: CircularProgressIndicator(strokeWidth: 2),
+                                 )
+                               : const Icon(Icons.storage_rounded, size: 20),
+                           label: Text(ble.isChecking ? 'Checking...' : 'Check Storage', style: const TextStyle(fontSize: 13)),
+                           style: OutlinedButton.styleFrom(
+                             padding: const EdgeInsets.symmetric(vertical: 12),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                           ),
+                         ),
+                       ),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: OutlinedButton.icon(
+                           onPressed: () => _confirmReset(context, ble),
+                           icon: Icon(Icons.restore_rounded, color: Colors.orange.shade700, size: 20),
+                           label: Text(_l10n?.translate('factoryReset') ?? 'Factory Reset', style: TextStyle(color: Colors.orange.shade700, fontSize: 13)),
+                           style: OutlinedButton.styleFrom(
+                             padding: const EdgeInsets.symmetric(vertical: 12),
+                             side: BorderSide(color: Colors.orange.shade300),
+                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                           ),
+                         ),
+                       ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  // Disconnect Button
+                  TextButton.icon(
+                    onPressed: () => ble.disconnect(),
+                    icon: Icon(Icons.bluetooth_disabled_rounded, color: Colors.red.shade400, size: 20),
+                    label: Text(_l10n?.translate('disconnect') ?? 'Disconnect Device', style: TextStyle(color: Colors.red.shade400)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 32),
-            SizedBox(
-              width: 250,
-              child: ElevatedButton.icon(
-                onPressed: syncedDerets.isEmpty
-                    ? null
-                    : () => _startSync(ble, workspace),
-                icon: const Icon(Icons.cloud_upload),
-                label: Text(_l10n?.translate('syncAllToDevice') ?? 'Sync All to Device'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 250,
-              child: OutlinedButton.icon(
-                onPressed: ble.isChecking ? null : () => _triggerCheck(ble),
-                icon: ble.isChecking
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.storage, color: Colors.blue),
-                label: Text(ble.isChecking ? 'Checking...' : 'Check Device Storage'),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: ble.isChecking ? Colors.grey : Colors.blue),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 250,
-              child: OutlinedButton.icon(
-                onPressed: () => _confirmReset(context, ble),
-                icon: const Icon(Icons.restore, color: Colors.orange),
-                label: Text(_l10n?.translate('factoryReset') ?? 'Factory Reset'),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.orange),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 250,
-              child: OutlinedButton.icon(
-                onPressed: () => ble.disconnect(),
-                icon: const Icon(Icons.bluetooth_disabled, color: Colors.red),
-                label: Text(_l10n?.translate('disconnect') ?? 'Disconnect'),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -483,7 +639,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     setState(() {
       _isSyncing = true;
       _syncProgress = 0.0;
-      _syncStatus = _l10n?.translate('preparingData') ?? 'Menyiapkan data...';
+      _syncStatus = _l10n?.translate('preparingData') ?? 'Preparing data...';
       _syncedDerets = 0;
       _syncedWords = 0;
     });
@@ -494,14 +650,14 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       
       // 2. Kirim data (Proses pengiriman)
       setState(() {
-        _syncStatus = 'Mengirim data ke alat...';
+        _syncStatus = _l10n?.translate('sendingData') ?? 'Sending data to device...';
         _syncProgress = 0.5; // Tandai sudah kirim
       });
       await ble.writeBatchJson(payload);
 
       // 3. Menunggu Feedback Nyata dari ESP32 (NOTIFY OK:n/n)
       setState(() {
-        _syncStatus = 'Menunggu konfirmasi penyimpanan dari alat...';
+        _syncStatus = _l10n?.translate('waitingForConfirmation') ?? 'Waiting for storage confirmation...';
         _syncProgress = 0.8;
       });
 
@@ -522,13 +678,13 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       }
 
       if (!success) {
-        throw Exception('Timeout: Alat tidak merespons konfirmasi penyimpanan.');
+        throw Exception(_l10n?.translate('timeoutStatus') ?? 'Timeout: Device did not respond to storage confirmation.');
       }
 
       // 4. Selesai
       setState(() {
         _syncProgress = 1.0;
-        _syncStatus = _l10n?.translate('done') ?? 'Done!';
+        _syncStatus = _l10n?.translate('doneSync') ?? 'Done!';
         _syncedDerets = syncedDerets.length;
         _syncedWords = totalWords;
       });

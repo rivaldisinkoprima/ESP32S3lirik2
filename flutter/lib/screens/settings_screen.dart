@@ -59,25 +59,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         fontSize: 16,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isPositive
-                            ? Theme.of(context).colorScheme.secondaryContainer
-                            : Theme.of(context).colorScheme.errorContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${isPositive ? '+' : ''}$offset ms',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: Container(
+                        key: ValueKey<int>(offset),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
                           color: isPositive
-                              ? Theme.of(context).colorScheme.onSecondaryContainer
-                              : Theme.of(context).colorScheme.onErrorContainer,
+                              ? Theme.of(context).colorScheme.secondaryContainer
+                              : Theme.of(context).colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isPositive ? Colors.green : Colors.red).withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            )
+                          ]
+                        ),
+                        child: Text(
+                          '${isPositive ? '+' : ''}$offset ms',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            color: isPositive
+                                ? Theme.of(context).colorScheme.onSecondaryContainer
+                                : Theme.of(context).colorScheme.onErrorContainer,
+                          ),
                         ),
                       ),
                     ),
@@ -165,28 +176,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
                   children: [-200, -100, 0, 100, 150, 200, 300].map((val) {
                     final isSelected = offset == val;
                     return ChoiceChip(
                       label: Text('${val > 0 ? '+' : ''}$val'),
                       selected: isSelected,
+                      showCheckmark: false,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       selectedColor: val >= 0
                           ? Theme.of(context).colorScheme.secondaryContainer
                           : Theme.of(context).colorScheme.errorContainer,
                       onSelected: (_) {
+                        HapticFeedback.lightImpact();
                         workspace.setGlobalOffset(val);
                       },
                       labelStyle: TextStyle(
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                         color: isSelected
                             ? (val >= 0
                                   ? Theme.of(context).colorScheme.onSecondaryContainer
                                   : Theme.of(context).colorScheme.onErrorContainer)
                             : Theme.of(context).colorScheme.onSurface,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                           color: isSelected ? Colors.transparent : Theme.of(context).colorScheme.outlineVariant,
+                        )
                       ),
                     );
                   }).toList(),
@@ -306,24 +325,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ElevatedButton(
-                          onPressed: localeProvider.locale.languageCode == 'en'
-                              ? null
-                              : () {
-                                  HapticFeedback.lightImpact();
-                                  localeProvider.setLocale(const Locale('en'));
-                                },
-                          child: const Text('EN'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: localeProvider.locale.languageCode == 'id'
-                              ? null
-                              : () {
-                                  HapticFeedback.lightImpact();
-                                  localeProvider.setLocale(const Locale('id'));
-                                },
-                          child: const Text('ID'),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment<String>(
+                                value: 'en',
+                                label: Text('EN', style: TextStyle(fontWeight: FontWeight.bold))),
+                            ButtonSegment<String>(
+                                value: 'id',
+                                label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
+                          ],
+                          selected: {localeProvider.locale.languageCode},
+                          onSelectionChanged: (Set<String> newSelection) {
+                            HapticFeedback.lightImpact();
+                            localeProvider.setLocale(Locale(newSelection.first));
+                          },
+                          showSelectedIcon: false,
+                          style: ButtonStyle(
+                            shape: WidgetStateProperty.all(
+                              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            )
+                          ),
                         ),
                       ],
                     ),

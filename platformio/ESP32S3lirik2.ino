@@ -461,13 +461,6 @@ void screening() {
 }
 
 void loop() {
-  static uint32_t lastHeartbeat = 0;
-  if (millis() - lastHeartbeat >= 2000) {
-    lastHeartbeat = millis();
-    Serial.print("[LOOP] Heartbeat - Free Heap: ");
-    Serial.println(ESP.getFreeHeap());
-  }
-
   handleBLE(); // Tangani data Bluetooth yang masuk
   
   if (digitalRead(buttonPower) == LOW) {
