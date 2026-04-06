@@ -16,6 +16,7 @@ import 'providers/ble_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/locale_provider.dart';
 import 'screens/main_shell.dart';
+import 'screens/splash_screen.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -41,6 +42,7 @@ class LirikSyncApp extends StatefulWidget {
 
 class _LirikSyncAppState extends State<LirikSyncApp> {
   bool _initialized = false;
+  bool _splashDone = false;
   String _initStatus = 'checkBluetooth';
   List<String> _permissionStatus = [];
 
@@ -152,13 +154,22 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
       initialRoute: '/',
       onGenerateRoute: (settings) {
         return MaterialPageRoute(
-          builder: (_) => _initialized
-              ? MainShell(key: ValueKey(localeProvider.locale.languageCode))
-              : PermissionGateScreen(
-                  status: _initStatus,
-                  permissions: _permissionStatus,
-                  onRetry: _initialize,
-                ),
+          builder: (_) {
+            if (!_splashDone) {
+              return CustomSplashScreen(
+                onFinish: () {
+                  setState(() => _splashDone = true);
+                },
+              );
+            }
+            return _initialized
+                ? MainShell(key: ValueKey(localeProvider.locale.languageCode))
+                : PermissionGateScreen(
+                    status: _initStatus,
+                    permissions: _permissionStatus,
+                    onRetry: _initialize,
+                  );
+          },
         );
       },
     );
