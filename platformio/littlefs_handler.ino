@@ -321,3 +321,99 @@ void listLirikFiles() {
         Serial.println(" files");
     }
 }
+
+/**
+ * Build payload JSON untuk dikirim ke Flutter via BLE NOTIFY.
+ * Format: [{"d":1,"name":"Deret 1","w":["KATA1","KATA2",...]},...]
+ * Tanpa timestamp, hanya nomor slot, nama, dan kata-kata.
+ * 
+ * @return String JSON yang siap dikirim, diakhiri [DATA_EOF]
+ */
+String buildCheckPayload() {
+    Serial.println("[LFS-CHECK] ========================================");
+    Serial.println("[LFS-CHECK] Building check payload from LittleFS...");
+    
+    String result = "[";
+    bool first = true;
+    int deretFound = 0;
+    
+    for (int slot = 1; slot <= 20; slot++) {
+        String filename = "/lirik/deret_" + String(slot) + ".json";
+        
+        if (!LittleFS.exists(filename)) {
+            // Serial.print("[LFS-CHECK] Slot "); Serial.print(slot); Serial.println(": EMPTY");
+            continue;
+        }
+        
+        File f = LittleFS.open(filename, "r");
+        if (!f) {
+            Serial.print("[LFS-CHECK] ERROR: Cannot open slot ");
+            Serial.println(slot);
+            continue;
+        }
+        
+        size_t fileSize = f.size();
+        Serial.print("[LFS-CHECK] Found Slot ");
+        Serial.print(slot);
+        Serial.print(" (");
+        Serial.print(fileSize);
+        Serial.println(" bytes). Parsing...");
+
+        String content = "";
+        while (f.available()) {
+            content += char(f.read());
+        }
+        f.close();
+        
+        // Parse: ambil name + kata-kata saja (tanpa timestamp)
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, content);
+        if (err) {
+            Serial.print("[LFS-CHECK] ERROR in Slot ");
+            Serial.print(slot);
+            Serial.print(": JSON error: ");
+            Serial.println(err.c_str());
+            continue;
+        }
+        
+        String name = doc["name"].as<String>();
+        JsonArray wordsArray = doc["words"].as<JsonArray>();
+        
+        if (!first) result += ",";
+        first = false;
+        
+        result += "{\"d\":" + String(slot);
+        result += ",\"name\":\"" + name + "\"";
+        result += ",\"w\":[";
+        
+        int wi = 0;
+        for (JsonObject w : wordsArray) {
+            if (wi > 0) result += ",";
+            result += "\"" + w["w"].as<String>() + "\"";
+            wi++;
+        }
+        
+        result += "]}";
+        
+        Serial.print("[LFS-CHECK] >> Slot ");
+        Serial.print(slot);
+        Serial.print(" OK: \"");
+        Serial.print(name);
+        Serial.print("\" with ");
+        Serial.print(wi);
+        Serial.println(" words added to payload.");
+        
+        deretFound++;
+    }
+    
+    result += "]";
+    
+    Serial.print("[LFS-CHECK] Total derets: ");
+    Serial.println(deretFound);
+    Serial.print("[LFS-CHECK] Payload size: ");
+    Serial.print(result.length());
+    Serial.println(" bytes");
+    Serial.println("[LFS-CHECK] ========================================");
+    
+    return result;
+}

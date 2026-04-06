@@ -20,23 +20,28 @@
 #define LIRIK_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define LIRIK_CHAR_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
+#include <atomic>
+
 // Buffer untuk menerima data chunk
 String bleBuffer = "";
 bool bleConnected = false;
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 
-// Decoupling: pindahkan proses berat dari callback ke main loop
+// Decoupling: Gunakan atomic agar aman dibaca antar Core (Core 0 vs Core 1)
 String payloadToProcess = "";
-volatile bool newPayloadAvailable = false;
+std::atomic<bool> newPayloadAvailable(false);
+std::atomic<uint32_t> loopCounter(0);
 
 // Forward declarations
 void parseBlePayload(const String& payload);
 bool saveDeretToLittleFS(int slot, const String& name, const String& jsonWords);
 void factoryReset();
+void sendCheckPayload();
 extern bool writeDeretFile(int slot, const String& content);
 extern void deleteAllDeretFiles();
 extern void listLirikFiles();
+extern String buildCheckPayload();
 
 // Helper: kirim notifikasi status ke Flutter (jika tersambung & subscribed)
 void notifyStatus(const char* status) {
@@ -87,12 +92,12 @@ class MyCallbacks: public BLECharacteristicCallbacks {
                 
                 Serial.println("[BLE-RX] ---- [EOF] DETECTED ----");
                 
-                if (newPayloadAvailable) {
+                if (newPayloadAvailable.load()) {
                    Serial.println("[BLE-RX] WARNING: Previous payload still processing, overwriting!");
                 }
                 
                 payloadToProcess = payload;
-                newPayloadAvailable = true;
+                newPayloadAvailable.store(true);
             }
         }
     }
@@ -142,28 +147,32 @@ void initBLE() {
 
 // Dipanggil di main loop() - proses data BLE yang masuk
 void handleBLE() {
-    if (newPayloadAvailable) {
-        newPayloadAvailable = false;
+    static uint32_t lastTrace = 0;
+    if (millis() - lastTrace >= 5000) {
+        lastTrace = millis();
+        Serial.print("[BLE-TRACE] handleBLE is active. Flag Status: ");
+        Serial.println(newPayloadAvailable.load() ? "TRUE" : "FALSE");
+    }
+
+    if (newPayloadAvailable.load()) {
+        newPayloadAvailable.store(false);
         
-        Serial.print("[BLE-LOOP] Processing complete payload size: ");
+        Serial.print("[BLE-LOOP] Processing data. Size: ");
         Serial.print(payloadToProcess.length());
-        Serial.println(" bytes");
+        Serial.println(" bytes.");
         
         parseBlePayload(payloadToProcess);
         
         payloadToProcess = "";
-        Serial.println("[BLE-LOOP] Done.");
     }
 }
 
 void parseBlePayload(const String& payload) {
     Serial.println("[BLE-PARSE] --- Begin JSON parsing ---");
+    Serial.print("[BLE-PARSE] Raw Payload: ");
+    Serial.println(payload);
     
-    // Parse JSON (ArduinoJson 7 syntax)
-    // JsonDocument otomatis mengatur alokasi memori secara dinamis di stack/heap 
-    // sesuai besar payload yang diterima (sudah sangat efisien di AJ7)
     JsonDocument doc;
-    
     DeserializationError error = deserializeJson(doc, payload);
     
     if (error) {
@@ -173,20 +182,29 @@ void parseBlePayload(const String& payload) {
         return;
     }
     
-    Serial.println("[BLE-PARSE] JSON parsed successfully");
-    Serial.print("[BLE-PARSE] Memory used: ");
-    Serial.print(doc.memoryUsage());
-    Serial.println(" bytes");
-    
-    // Cek factory reset
-    if (doc.containsKey("c") && doc["c"] == "reset") {
-        Serial.println("[BLE-PARSE] >> FACTORY RESET command received!");
-        factoryReset();
-        notifyStatus("OK:RESET");
-        return;
+    // Cek perintah via key "c"
+    if (!doc["c"].isNull()) {
+        String command = doc["c"].as<String>();
+        Serial.print("[BLE-PARSE] Command key 'c' found: ");
+        Serial.println(command);
+
+        if (command == "reset") {
+            Serial.println("[BLE-PARSE] >> Executing FACTORY RESET...");
+            factoryReset();
+            notifyStatus("OK:RESET");
+            return;
+        }
+        
+        if (command == "check") {
+            Serial.println("[BLE-PARSE] >> Executing CHECK STORAGE...");
+            sendCheckPayload();
+            return;
+        }
     }
     
-    // Proses array atau single object
+    // Jika bukan command, proses sebagai data lirik (Array atau Object)
+    Serial.println("[BLE-PARSE] Not a command, processing as lyric data...");
+    
     int successCount = 0;
     int failCount = 0;
     
@@ -199,23 +217,15 @@ void parseBlePayload(const String& payload) {
         int idx = 0;
         for (JsonObject deret : array) {
             Serial.print("[BLE-PARSE]   Processing item ");
-            Serial.print(idx + 1);
-            Serial.print("/");
-            Serial.println(array.size());
+            Serial.println(idx + 1);
             if (processDeret(deret)) successCount++;
             else failCount++;
             idx++;
         }
-        Serial.println("[BLE-PARSE] Bulk processing complete");
     } else if (doc.is<JsonObject>()) {
-        JsonObject deret = doc.as<JsonObject>();
-        Serial.println("[BLE-PARSE] Single deret payload detected");
-        if (processDeret(deret)) successCount++;
+        Serial.println("[BLE-PARSE] Single object payload detected");
+        if (processDeret(doc.as<JsonObject>())) successCount++;
         else failCount++;
-    } else {
-        Serial.println("[BLE-PARSE] ERROR: Unknown JSON structure");
-        notifyStatus("ERR:UNKNOWN_FORMAT");
-        return;
     }
     
     // Kirim status feedback ke Flutter
@@ -305,3 +315,56 @@ bool saveDeretToLittleFS(int slot, const String& name, const String& jsonWords) 
     }
     return success;
 }
+
+/**
+ * Baca semua file LittleFS, bangun JSON ringkas (tanpa timestamp),
+ * kirim ke Flutter via NOTIFY dalam chunk, diakhiri [DATA_EOF].
+ * 
+ * Format tiap chunk: text biasa (bagian dari JSON)
+ * Akhir data: "[DATA_EOF]" (tanpa newline)
+ */
+void sendCheckPayload() {
+    if (!bleConnected || pCharacteristic == NULL) {
+        Serial.println("[BLE-CHECK] ERROR: Cannot send: client NOT connected");
+        return;
+    }
+    
+    Serial.println("[BLE-CHECK] Building check payload...");
+    String payload = buildCheckPayload();
+    String full = payload + "[DATA_EOF]";
+    
+    Serial.println("[BLE-CHECK] --------------------------------");
+    Serial.print("[BLE-CHECK] Final payload size: ");
+    Serial.print(full.length());
+    Serial.println(" bytes");
+    Serial.print("[BLE-CHECK] MTU Status: ");
+    Serial.println(pServer->getPeerMTU(pServer->getConnId()));
+    
+    // Kirim dalam chunk 490 bytes (BLE NOTIFY limit ~512 bytes, sisakan buffer)
+    const int CHUNK_SIZE = 490;
+    int totalChunks = (full.length() + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    
+    for (int i = 0; i < (int)full.length(); i += CHUNK_SIZE) {
+        String chunk = full.substring(i, min(i + CHUNK_SIZE, (int)full.length()));
+        pCharacteristic->setValue(chunk.c_str());
+        pCharacteristic->notify();
+        
+        Serial.print("[BLE-CHECK] SENDING Chunk ");
+        Serial.print((i / CHUNK_SIZE) + 1);
+        Serial.print("/");
+        Serial.print(totalChunks);
+        Serial.print(": ");
+        Serial.print(chunk.length());
+        Serial.println(" bytes.");
+        
+        // Preview content
+        Serial.print("[BLE-CHECK] Content preview: ");
+        Serial.println(chunk.substring(0, min((int)chunk.length(), 40)) + "...");
+        
+        delay(50); // Tambahkan sedikit jeda agar tidak menjebol buffer BLE stack
+    }
+    
+    Serial.println("[BLE-CHECK] SUCCESS: All chunks delivered.");
+    Serial.println("[BLE-CHECK] --------------------------------");
+}
+

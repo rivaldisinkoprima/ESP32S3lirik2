@@ -309,6 +309,8 @@ int getDeretPageCount(int deretIndex);
 bool processDeret(JsonObject deret);
 void notifyStatus(const char* status);
 bool saveDeretToLittleFS(int slot, const String& name, const String& jsonWords);
+void sendCheckPayload();
+String buildCheckPayload();
 // ---------------------------------------------
 
 void setup() {
@@ -459,7 +461,14 @@ void screening() {
 }
 
 void loop() {
-  handleBLE(); // Tangani data Bluetooth yang masuk (Decoupled from callback)
+  static uint32_t lastHeartbeat = 0;
+  if (millis() - lastHeartbeat >= 2000) {
+    lastHeartbeat = millis();
+    Serial.print("[LOOP] Heartbeat - Free Heap: ");
+    Serial.println(ESP.getFreeHeap());
+  }
+
+  handleBLE(); // Tangani data Bluetooth yang masuk
   
   if (digitalRead(buttonPower) == LOW) {
     if (on == true) {

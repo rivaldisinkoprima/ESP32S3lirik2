@@ -22,8 +22,25 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
   String _syncStatus = '';
   int _syncedDerets = 0;
   int _syncedWords = 0;
+  bool _checkDialogOpen = false;
 
   AppLocalizations? get _l10n => AppLocalizations.of(context);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ble = Provider.of<BleProvider>(context);
+    
+    // Pemicu popup: Jika data sudah ada (bukan null) dan isChecking sudah false
+    if (!ble.isChecking && ble.checkResults != null && !_checkDialogOpen) {
+      final results = ble.checkResults!;
+      // Segera bersihkan results di provider agar notifikasi OK lainnya tidak memunculkan dialog lagi
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ble.clearCheckResults();
+        _showCheckDialog(results);
+      });
+    }
+  }
 
   Widget _buildSectionHeader(String title) {
     return Container(
@@ -287,6 +304,24 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             SizedBox(
               width: 250,
               child: OutlinedButton.icon(
+                onPressed: ble.isChecking ? null : () => _triggerCheck(ble),
+                icon: ble.isChecking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.storage, color: Colors.blue),
+                label: Text(ble.isChecking ? 'Checking...' : 'Check Device Storage'),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: ble.isChecking ? Colors.grey : Colors.blue),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 250,
+              child: OutlinedButton.icon(
                 onPressed: () => _confirmReset(context, ble),
                 icon: const Icon(Icons.restore, color: Colors.orange),
                 label: Text(_l10n?.translate('factoryReset') ?? 'Factory Reset'),
@@ -440,6 +475,10 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
   Future<void> _startSync(BleProvider ble, WorkspaceProvider workspace) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final syncedDerets = workspace.derets.where((d) => d.isSynced).toList();
+    final totalWords = syncedDerets.fold<int>(
+      0,
+      (sum, d) => sum + d.words.length,
+    );
 
     setState(() {
       _isSyncing = true;
@@ -450,41 +489,56 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     });
 
     try {
-      // Simulate progress per deret
+      // 1. Build Payload
       final payload = workspace.buildBulkJson();
-
-      // Update progress during sync
-      for (int i = 0; i < syncedDerets.length; i++) {
-        if (!mounted) break;
-        setState(() {
-          _syncedDerets = i + 1;
-          _syncedWords = syncedDerets
-              .take(i + 1)
-              .fold<int>(0, (sum, d) => sum + d.words.length);
-          _syncProgress = (i + 1) / syncedDerets.length * 0.8;
-          _syncStatus = _l10n?.translate('syncingTrackDetail', ['${syncedDerets[i].slotNumber}']) ?? 'Syncing Track ${syncedDerets[i].slotNumber}...';
-        });
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-
+      
+      // 2. Kirim data (Proses pengiriman)
       setState(() {
-        _syncProgress = 0.9;
-        _syncStatus = _l10n?.translate('sendingData') ?? 'Mengirim data...';
+        _syncStatus = 'Mengirim data ke alat...';
+        _syncProgress = 0.5; // Tandai sudah kirim
       });
-
       await ble.writeBatchJson(payload);
 
+      // 3. Menunggu Feedback Nyata dari ESP32 (NOTIFY OK:n/n)
       setState(() {
-        _syncProgress = 1.0;
-        _syncStatus = _l10n?.translate('doneSync') ?? 'Done!';
+        _syncStatus = 'Menunggu konfirmasi penyimpanan dari alat...';
+        _syncProgress = 0.8;
       });
 
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Polling/Waiting loop untuk menunggu status berubah (max 15 detik)
+      int retry = 0;
+      bool success = false;
+      while (retry < 150) { // 150 * 100ms = 15 detik
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        if (ble.lastStatus.startsWith('OK:')) {
+          success = true;
+          break;
+        }
+        if (ble.lastStatus.startsWith('ERR:')) {
+          throw Exception('ESP32 Error: ${ble.lastStatus}');
+        }
+        retry++;
+      }
 
+      if (!success) {
+        throw Exception('Timeout: Alat tidak merespons konfirmasi penyimpanan.');
+      }
+
+      // 4. Selesai
+      setState(() {
+        _syncProgress = 1.0;
+        _syncStatus = _l10n?.translate('done') ?? 'Done!';
+        _syncedDerets = syncedDerets.length;
+        _syncedWords = totalWords;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
       scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
-            _l10n?.translate('syncSuccessful', ['$_syncedDerets', '$_syncedWords']) ?? 'Sync successful! $_syncedDerets tracks, $_syncedWords words sent.',
+            _l10n?.translate('syncSuccessful', ['${syncedDerets.length}', '$totalWords']) ?? 'Sync successful! ${syncedDerets.length} tracks, $totalWords words sent.',
           ),
           backgroundColor: Colors.green,
         ),
@@ -527,5 +581,153 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _triggerCheck(BleProvider ble) async {
+    setState(() => _checkDialogOpen = false);
+
+    // Tampilkan loading dialog sementara menunggu ESP32 merespons
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const AlertDialog(
+          title: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Checking Device...'),
+            ],
+          ),
+          content: Text('Sedang membaca isi penyimpanan ESP32, mohon tunggu...'),
+        ),
+      );
+    }
+
+    await ble.sendCheck();
+
+    // Tutup loading dialog setelah perintah terkirim
+    // (popup hasil akan muncul otomatis via didChangeDependencies setelah data masuk)
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  void _showCheckDialog(List<DeretCheckResult> results) {
+    setState(() => _checkDialogOpen = true);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        title: Row(
+          children: [
+            const Icon(Icons.storage, color: Colors.blue, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'ESP32 Storage (${results.length} deret)',
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: results.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.folder_off, size: 48, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text(
+                          'Tidak ada deret tersimpan di ESP32.\nSilakan sync terlebih dahulu.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: results.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (ctx, i) {
+                    final deret = results[i];
+                    return ExpansionTile(
+                      leading: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                        child: Text(
+                          '${deret.slot}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        deret.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${deret.words.length} kata',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      childrenPadding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        bottom: 8,
+                      ),
+                      children: [
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: deret.words.asMap().entries.map((e) {
+                            return Chip(
+                              label: Text(
+                                e.value,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              avatar: CircleAvatar(
+                                radius: 8,
+                                child: Text(
+                                  '${e.key + 1}',
+                                  style: const TextStyle(fontSize: 8),
+                                ),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() => _checkDialogOpen = false);
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    ).whenComplete(() {
+      if (mounted) setState(() => _checkDialogOpen = false);
+    });
   }
 }
