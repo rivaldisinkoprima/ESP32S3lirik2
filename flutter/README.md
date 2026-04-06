@@ -21,6 +21,7 @@ Aplikasi ini berfungsi sebagai **bridge wireless** untuk:
 | FR.A6 | Bluetooth Sync | Hubungkan ke ESP32 via BLE NimBLE |
 | FR.A7 | Data Chunking | Pemecahan payload 512 bytes per chunk untuk kestabilan BLE |
 | FR.A8 | Factory Reset | Kirim perintah reset ke ESP32 |
+| FR.A9 | Premium Branding | Custom Launcher Icon & Animated Splash Screen (3 detik) |
 
 ## Struktur Folder
 
@@ -37,9 +38,12 @@ lib/
 │   ├── home_screen.dart         # Menu utama workspace + warning banner
 │   ├── deret_editor_screen.dart  # Editor kata + waveform + auto-detect
 │   ├── ble_sync_screen.dart      # Sinkronisasi Bluetooth + Factory Reset
-│   └── settings_screen.dart      # Pengaturan delay offset
-└── services/
-    └── spike_detector.dart      # Algoritma deteksi spike dari waveform
+│   ├── settings_screen.dart      # Pengaturan delay offset
+│   └── services/
+│       └── spike_detector.dart      # Algoritma deteksi spike dari waveform
+├── assets/
+│   └── icon/                        # Aset ikon & logo aplikasi (icon.png)
+└── pubspec.yaml                     # Dependensi, aset, & icon generation config
 ```
 
 ## Format Data JSON

@@ -6,6 +6,11 @@ Proyek ini adalah sistem **audio screening** (pemeriksaan pendengaran) yang terd
 
 1. **ESP32-S3 Lirik Player** - Perangkat keras embedded untuk memutar musik dan menampilkan lirik sinkron
 2. **Flutter Mobile App** - Aplikasi Android untuk mengelola data lirik dan sinkronisasi ke perangkat ESP32
+3. **Bluetooth Bridge (BLE)** - Protokol komunikasi antara mobile app dan hardware
+
+## Dokumentasi Detail
+- [**Dokumentasi Aplikasi Flutter**](./flutter/README.md) - Panduan fitur, build, dan alur kerja mobile app.
+- [**Dokumentasi Firmware ESP32**](./platformio/README.md) - Detail hardware, LittleFS, dan debug logging.
 
 ### Arsitektur Sistem
 
@@ -102,9 +107,10 @@ int TrigRlyDF   = 20;    // Trigger Relay DFPlayer
 | FR.A3 | Validasi Karakter | Batas max 8 karakter per kata (OLED/TFT) |
 | FR.A4 | SOP Warning | Peringatan wajib gunakan MP3 dari Folder 03 |
 | FR.A5 | Delay Offset | Slider -500ms hingga +500ms untuk kompensasi DFPlayer |
-| FR.A6 | Bluetooth Sync | Kirim data ke ESP32 via BLE NimBLE |
-| FR.A7 | Data Chunking | Pemecahan payload 512 bytes untuk kestabilan BLE |
-| FR.A8 | Factory Reset | Kirim perintah reset ke ESP32 |
+| FR.A6 | Bluetooth Sync | Kirim data ke ESP32 via BLE (flutter_blue_plus) |
+| FR.A7 | Data Chunking | Pemecahan payload 512 bytes dengan [EOF] delimiter |
+| FR.A8 | Factory Reset | Kirim perintah reset (`{"c":"reset"}`) ke ESP32 |
+| FR.A9 | Premium Branding | Custom Launcher Icon & Animated Splash Screen (3s) |
 
 ### 2.2 Struktur Folder Flutter
 
@@ -119,13 +125,16 @@ flutter/
 │   │   ├── ble_provider.dart      # Manajemen koneksi BLE
 │   │   └── workspace_provider.dart # Manajemen state workspace
 │   ├── screens/
+│   │   ├── splash_screen.dart     # Premium Animated Splash Screen
 │   │   ├── home_screen.dart       # Menu utama workspace
 │   │   ├── deret_editor_screen.dart # Editor kata per deret
 │   │   ├── ble_sync_screen.dart   # Sinkronisasi Bluetooth
-│   │   └── settings_screen.dart  # Pengaturan offset
+│   │   └── settings_screen.dart   # Pengaturan offset
 │   └── services/
 │       └── spike_detector.dart    # Algoritma deteksi spike
-├── pubspec.yaml                   # Dependensi Flutter
+├── assets/
+│   └── icon/                      # Asset icon & logo aplikasi
+├── pubspec.yaml                   # Dependensi & registrasi aset
 └── prd_flutter.md                 # Spesifikasi requirements
 ```
 
@@ -173,19 +182,14 @@ flutter/
 
 | File | Fungsi |
 |------|--------|
-| `ESP32S3lirik2.ino` | Main program, setup, loop, variabel global |
-| `begin.ino` | Inisialisasi device, splash screen |
-| `home.ino` | Kembali ke menu utama |
-| `oke.ino` | Konfirmasi/OK button handler |
-| `nextp.ino` | Tombol next handler |
-| `previouse.ino` | Tombol previous handler |
-| `volume.ino` | Kontrol volume |
-| `mode.ino` | Mode putar & setting waktu |
-| `Mic.ino` | Mode mikrofon dokter |
-| `file.ino` | Menu file/deret |
-| `lirik.ino` | Tampilan lirik sinkron |
-| `readRTC.ino` | Pembacaan RTC |
-| `readButtonState.ino` | Pembacaan state tombol |
+| `ESP32S3lirik2.ino` | Main program, setup, loop, logic `listderet` (LittleFS-first) |
+| `ble_server.ino` | BLE GATT Server & JSON Chunk Reassembler |
+| `littlefs_handler.ino` | Manajemen file internal (Read/Write/Delete JSON) |
+| `begin.ino` | Inisialisasi device, native screen cleanup |
+| `oke.ino` | Button OK handler & playback trigger |
+| `lirik.ino` | Tampilan lirik sinkron & dynamic timing logic |
+| `readRTC.ino` | Pembacaan waktu dari DS3231 |
+| `Mic.ino` | Mode mikrofon & monitor state |
 
 ### 3.2 State Machine
 
@@ -235,6 +239,14 @@ SD Card/
 ```json
 {"c": "reset"}[EOF]
 ```
+
+### 4.3 Fitur Development (Debug)
+Untuk memudahkan pengembangan, firmware dilengkapi dengan **Enhanced Serial Debugging** pada baud rate `9600`.
+- **`[LFS]`**: Info inisialisasi & monitoring sisa memori Internal Flash.
+- **`[BLE-RX]`**: Monitoring data yang masuk per chunk.
+- **`[BLE-PARSE]`**: Verifikasi hasil parsing JSON.
+- **`[DERET]`**: Info pemilihan sumber data (LittleFS vs Hardcoded).
+- **`[MEM]`**: Monitoring penggunaan heap & pembersihan memori (RAM).
 
 ---
 

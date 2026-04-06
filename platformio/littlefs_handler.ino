@@ -1,10 +1,20 @@
 /**
  * LittleFS Handler untuk menyimpan dan membaca data deret dari JSON
+ * Includes comprehensive debug logging for development
  */
 
 #include <FS.h>
 #include <LittleFS.h>
 #include <Arduino.h>
+#include <ArduinoJson.h>
+
+// Konstanta baterai dipindahkan ke forward declarations atau diatur dalam #ifndef untuk menghindari redefinisi
+#ifndef BAT_FULL
+#define BAT_FULL    4.2
+#endif
+#ifndef BAT_EMPTY
+#define BAT_EMPTY   3.0
+#endif
 
 #define FORMAT_LITTLEFS_IF_FAILED true
 
@@ -14,36 +24,61 @@
 extern Word* getHardcodedWords(int slot);
 
 bool initLittleFS() {
+    Serial.println("[LFS] ========================================");
     Serial.println("[LFS] Initializing LittleFS...");
     
     if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED)) {
-        Serial.println("[LFS] LittleFS mount failed");
+        Serial.println("[LFS] ERROR: LittleFS mount FAILED!");
+        Serial.println("[LFS] ========================================");
         return false;
     }
     
+    // Print filesystem info
+    size_t totalBytes = LittleFS.totalBytes();
+    size_t usedBytes = LittleFS.usedBytes();
     Serial.println("[LFS] LittleFS mounted successfully");
+    Serial.print("[LFS]   Total space: ");
+    Serial.print(totalBytes);
+    Serial.println(" bytes");
+    Serial.print("[LFS]   Used space:  ");
+    Serial.print(usedBytes);
+    Serial.println(" bytes");
+    Serial.print("[LFS]   Free space:  ");
+    Serial.print(totalBytes - usedBytes);
+    Serial.println(" bytes");
     
     // Create lirik directory if not exists
     if (!LittleFS.exists("/lirik")) {
-        Serial.println("[LFS] Creating /lirik directory");
+        Serial.println("[LFS] Creating /lirik directory...");
         LittleFS.mkdir("/lirik");
+        Serial.println("[LFS] /lirik directory created");
+    } else {
+        Serial.println("[LFS] /lirik directory already exists");
     }
     
+    // List existing files on boot
+    Serial.println("[LFS] --- Existing files on boot ---");
+    listLirikFiles();
+    
+    Serial.println("[LFS] ========================================");
     return true;
 }
 
 String readDeretFile(int slot) {
     String filename = "/lirik/deret_" + String(slot) + ".json";
     
+    Serial.print("[LFS-READ] Reading file: ");
+    Serial.println(filename);
+    
     if (!LittleFS.exists(filename)) {
-        Serial.print("[LFS] File not found: ");
+        Serial.print("[LFS-READ] File NOT FOUND: ");
         Serial.println(filename);
         return "";
     }
     
     File file = LittleFS.open(filename, "r");
     if (!file) {
-        Serial.println("[LFS] Failed to open file");
+        Serial.println("[LFS-READ] ERROR: Failed to open file for reading");
         return "";
     }
     
@@ -53,10 +88,12 @@ String readDeretFile(int slot) {
     }
     file.close();
     
-    Serial.print("[LFS] Read ");
+    Serial.print("[LFS-READ] Read ");
     Serial.print(content.length());
-    Serial.println(" bytes from ");
+    Serial.print(" bytes from ");
     Serial.println(filename);
+    Serial.print("[LFS-READ] Content preview: ");
+    Serial.println(content.substring(0, min((int)content.length(), 150)));
     
     return content;
 }
@@ -64,17 +101,39 @@ String readDeretFile(int slot) {
 bool writeDeretFile(int slot, const String& content) {
     String filename = "/lirik/deret_" + String(slot) + ".json";
     
+    Serial.print("[LFS-WRITE] Writing to: ");
+    Serial.print(filename);
+    Serial.print(" (");
+    Serial.print(content.length());
+    Serial.println(" bytes)");
+    
     File file = LittleFS.open(filename, FILE_WRITE);
     if (!file) {
-        Serial.println("[LFS] Failed to open file for writing");
+        Serial.println("[LFS-WRITE] ERROR: Failed to open file for writing!");
         return false;
     }
     
-    file.print(content);
+    size_t bytesWritten = file.print(content);
     file.close();
     
-    Serial.print("[LFS] Written to ");
-    Serial.println(filename);
+    Serial.print("[LFS-WRITE] Bytes written: ");
+    Serial.println(bytesWritten);
+    
+    // Verify by reading back
+    if (LittleFS.exists(filename)) {
+        File verify = LittleFS.open(filename, "r");
+        if (verify) {
+            Serial.print("[LFS-WRITE] Verify: file size on disk = ");
+            Serial.print(verify.size());
+            Serial.println(" bytes ✓");
+            verify.close();
+        }
+    }
+    
+    // Print updated space info
+    Serial.print("[LFS-WRITE] Space remaining: ");
+    Serial.print(LittleFS.totalBytes() - LittleFS.usedBytes());
+    Serial.println(" bytes");
     
     return true;
 }
@@ -84,19 +143,28 @@ void deleteDeretFile(int slot) {
     
     if (LittleFS.exists(filename)) {
         LittleFS.remove(filename);
-        Serial.print("[LFS] Deleted: ");
+        Serial.print("[LFS-DEL] Deleted: ");
         Serial.println(filename);
     }
 }
 
 void deleteAllDeretFiles() {
-    Serial.println("[LFS] Deleting all deret files...");
+    Serial.println("[LFS-DEL] Deleting ALL deret files...");
     
+    int deleted = 0;
     for (int i = 1; i <= 20; i++) { // Support up to 20 derets
-        deleteDeretFile(i);
+        String filename = "/lirik/deret_" + String(i) + ".json";
+        if (LittleFS.exists(filename)) {
+            LittleFS.remove(filename);
+            Serial.print("[LFS-DEL]   Deleted: ");
+            Serial.println(filename);
+            deleted++;
+        }
     }
     
-    Serial.println("[LFS] All deret files deleted");
+    Serial.print("[LFS-DEL] Total files deleted: ");
+    Serial.println(deleted);
+    Serial.println("[LFS-DEL] All deret files deleted");
 }
 
 int getDeretCount() {
@@ -104,21 +172,21 @@ int getDeretCount() {
     File root = LittleFS.open("/lirik");
     
     if (!root) {
+        Serial.println("[LFS] ERROR: Cannot open /lirik directory");
         return 0;
     }
     
     File file = root.openNextFile();
     while (file) {
         String name = file.name();
-        if (name.startsWith("/lirik/deret_")) {
+        if (name.startsWith("/lirik/deret_") || name.startsWith("deret_")) {
             count++;
         }
         file = root.openNextFile();
     }
     
-    Serial.print("[LFS] Found ");
-    Serial.print(count);
-    Serial.println(" deret files");
+    Serial.print("[LFS] Deret count: ");
+    Serial.println(count);
     
     return count;
 }
@@ -126,45 +194,78 @@ int getDeretCount() {
 // Load deret dari LittleFS ke memory
 // Returns: pointer ke array Word atau NULL jika gagal
 Word* loadDeretFromLittleFS(int slot) {
+    Serial.println("[LFS-LOAD] --------------------------------");
+    Serial.print("[LFS-LOAD] Loading deret slot ");
+    Serial.print(slot);
+    Serial.println(" from LittleFS...");
+    
     String content = readDeretFile(slot);
     
     if (content.length() == 0) {
-        Serial.println("[LFS] Using fallback (hardcoded) data");
-        return getHardcodedWords(slot);
+        Serial.println("[LFS-LOAD] No data found, returning NULL (will use hardcoded)");
+        return NULL;
     }
     
-    // Parse JSON
-    DynamicJsonDocument doc(2048);
+    // Parse JSON (ArduinoJson 7 syntax)
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, content);
     
     if (error) {
-        Serial.print("[LFS] JSON parse error: ");
+        Serial.print("[LFS-LOAD] ERROR: JSON parse failed: ");
         Serial.println(error.c_str());
-        return getHardcodedWords(slot);
+        Serial.println("[LFS-LOAD] Returning NULL (will use hardcoded)");
+        return NULL;
     }
     
     JsonObject root = doc.as<JsonObject>();
+    String deretName = root["name"].as<String>();
     JsonArray wordsArray = root["words"].as<JsonArray>();
     
     // Allocate dynamic array
     int wordCount = wordsArray.size();
+    Serial.print("[LFS-LOAD] Deret name: ");
+    Serial.println(deretName);
+    Serial.print("[LFS-LOAD] Word count: ");
+    Serial.println(wordCount);
+    Serial.print("[LFS-LOAD] Allocating Word array: ");
+    Serial.print((wordCount + 1) * sizeof(Word));
+    Serial.println(" bytes");
+    
     Word* loadedWords = new Word[wordCount + 1];
     
     // First entry is deret name
     loadedWords[0].time = 0;
-    loadedWords[0].text = strdup(root["name"].as<const char*>());
+    loadedWords[0].text = strdup(deretName.c_str());
     
     // Load each word
     int i = 1;
     for (JsonObject w : wordsArray) {
         loadedWords[i].time = w["t"].as<float>();
         loadedWords[i].text = strdup(w["w"].as<const char*>());
+        
+        // Debug: print first 3 and last word
+        if (i <= 3 || i == wordCount) {
+            Serial.print("[LFS-LOAD]   [");
+            Serial.print(i);
+            Serial.print("] t=");
+            Serial.print((int)loadedWords[i].time);
+            Serial.print("ms -> \"");
+            Serial.print(loadedWords[i].text);
+            Serial.println("\"");
+        } else if (i == 4) {
+            Serial.println("[LFS-LOAD]   ... (truncated)");
+        }
         i++;
     }
     
-    Serial.print("[LFS] Loaded ");
+    Serial.print("[LFS-LOAD] Successfully loaded ");
     Serial.print(wordCount);
-    Serial.println(" words");
+    Serial.println(" words from LittleFS ✓");
+    Serial.println("[LFS-LOAD] --------------------------------");
+    
+    // Set global word count (header + words)
+    extern int loadedWordCount;
+    loadedWordCount = wordCount + 1;
     
     return loadedWords;
 }
@@ -178,26 +279,45 @@ Word* getHardcodedWords(int slot) {
 // Check apakah deret ada di LittleFS
 bool deretExistsInLittleFS(int slot) {
     String filename = "/lirik/deret_" + String(slot) + ".json";
-    return LittleFS.exists(filename);
+    bool exists = LittleFS.exists(filename);
+    Serial.print("[LFS-CHK] Slot ");
+    Serial.print(slot);
+    Serial.print(" (");
+    Serial.print(filename);
+    Serial.print("): ");
+    Serial.println(exists ? "EXISTS ✓" : "NOT FOUND");
+    return exists;
 }
 
 // List semua file di LittleFS
 void listLirikFiles() {
-    Serial.println("[LFS] Listing /lirik directory:");
+    Serial.println("[LFS-LIST] Contents of /lirik:");
     
     File root = LittleFS.open("/lirik");
     if (!root) {
-        Serial.println("[LFS] Failed to open directory");
+        Serial.println("[LFS-LIST] (empty or cannot open directory)");
         return;
     }
     
+    int count = 0;
     File file = root.openNextFile();
     while (file) {
-        Serial.print("  - ");
+        Serial.print("[LFS-LIST]   ");
+        Serial.print(count + 1);
+        Serial.print(". ");
         Serial.print(file.name());
         Serial.print(" (");
         Serial.print(file.size());
         Serial.println(" bytes)");
+        count++;
         file = root.openNextFile();
+    }
+    
+    if (count == 0) {
+        Serial.println("[LFS-LIST]   (no files found)");
+    } else {
+        Serial.print("[LFS-LIST] Total: ");
+        Serial.print(count);
+        Serial.println(" files");
     }
 }

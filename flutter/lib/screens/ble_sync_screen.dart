@@ -184,7 +184,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
               Text(
                 _syncStatus,
                 style: const TextStyle(
@@ -198,6 +197,26 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 _l10n?.translate('syncingTrackDetail', ['$_syncedDerets', '$_syncedWords']) ?? '$_syncedDerets deret, $_syncedWords kata',
                 style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
+              if (ble.lastStatus.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: ble.lastStatus.startsWith('OK') 
+                        ? Colors.green.withAlpha(30) 
+                        : Colors.red.withAlpha(30),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Device Response: ${ble.lastStatus}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -234,11 +253,22 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                _l10n?.translate('syncSuccessful', ['$syncedDerets', '$totalWords']) ?? '$syncedDerets tracks ready, $totalWords words',
+                _l10n?.translate('syncSuccessful', ['${syncedDerets.length}', '$totalWords']) ?? '${syncedDerets.length} tracks ready, $totalWords words',
                 style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSecondaryContainer),
                 textAlign: TextAlign.center,
               ),
             ),
+            if (ble.lastStatus.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Last Device Status: ${ble.lastStatus}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: 250,

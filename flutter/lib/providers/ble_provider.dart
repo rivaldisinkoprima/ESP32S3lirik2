@@ -25,11 +25,15 @@ class BleProvider with ChangeNotifier {
   BluetoothCharacteristic? _lirikCharacteristic;
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
+  String _lastStatus = "";
+  StreamSubscription? _statusSub;
+  StreamSubscription? _connectionSub;
 
   List<ScanResult> get scanResults => _scanResults;
   bool get isScanning => _isScanning;
   BluetoothDevice? get connectedDevice => _connectedDevice;
   bool get isConnected => _lirikCharacteristic != null;
+  String get lastStatus => _lastStatus;
 
   BleProvider() {
     FlutterBluePlus.scanResults.listen((results) {
@@ -71,6 +75,25 @@ class BleProvider with ChangeNotifier {
           }
         }
       }
+
+      if (_lirikCharacteristic != null) {
+        // Pantau status koneksi perangkat (Lost, Disconnected, dll)
+        _connectionSub = btDevice.connectionState.listen((state) {
+          if (state == BluetoothConnectionState.disconnected) {
+            debugPrint('[BLE-STATE] Device DISCONNECTED');
+            _cleanupLocal();
+          }
+        });
+
+        // Aktifkan NOTIFY
+        await _lirikCharacteristic!.setNotifyValue(true);
+        _statusSub = _lirikCharacteristic!.onValueReceived.listen((value) {
+          _lastStatus = utf8.decode(value);
+          debugPrint('[BLE-FEEDBACK] Status dari ESP32: $_lastStatus');
+          notifyListeners();
+        });
+      }
+
       notifyListeners();
       return _lirikCharacteristic != null;
     } catch (e) {
@@ -106,8 +129,17 @@ class BleProvider with ChangeNotifier {
 
   void disconnect() {
     _connectedDevice?.disconnect();
+    _cleanupLocal();
+  }
+
+  void _cleanupLocal() {
+    _statusSub?.cancel();
+    _statusSub = null;
+    _connectionSub?.cancel();
+    _connectionSub = null;
     _connectedDevice = null;
     _lirikCharacteristic = null;
+    _lastStatus = "";
     notifyListeners();
   }
 }

@@ -24,6 +24,7 @@ Aplikasi ini adalah jembatan *Wireless* yang bertugas merekam dan meracik lirik/
 - **FR.A6 - Transmisi Sinkronisasi Bluetooth (Batch):** Saat tombol *"Sync All"* ditekan, aplikasi mencari MAC Address perangkat/meminta masukan **PIN Statis Bluetooth**.
 - **FR.A7 - Data Chunking Algorithm (Pemecah Bytes):** Flutter tidak boleh melempar 5KB payload JSON dideretkan lurus, melainkan harus dipotong *buffer substring* 512 bytes tiap putaran, disempilkan ke Karakteristik BLE agar koneksi radionya tidak lemas/putus.
 - **FR.A8 - Kirim Sinyal Factory Reset:** UI menyediakan tuas darurat "Kembalikan Perangkat ke Default" yang mengirim string `{ "c": "reset" }` menendang modul ESP32 ke format pabrikan aslinya.
+- **FR.A9 - Premium Branding & UX:** Implementasi ikon aplikasi khusus dan layar splash animasi (Fade/Scale) berdurasi 3 detik untuk meningkatkan tampilan premium aplikasi.
 
 ### 3. Struktur Blueprint Komunikasi JSON
 

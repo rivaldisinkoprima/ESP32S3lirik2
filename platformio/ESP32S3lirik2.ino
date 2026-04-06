@@ -272,6 +272,10 @@ Word words10[] = {
 const int totalWords = sizeof(words) / sizeof(words[0]);
 
 bool running = false;
+bool wordsFromLittleFS = false; // Track apakah words saat ini dari LittleFS (perlu di-free)
+int loadedWordCount = 21;        // Jumlah elemen aktif dalam array words[] (termasuk header)
+unsigned long lastButtonTime = 0; // Timestamp terakhir tombol ditekan (debounce)
+const unsigned long DEBOUNCE_MS = 250; // Minimum interval antar tekan tombol (ms)
 
 // --- FORWARD DECLARATIONS UNTUK PLATFORMIO ---
 void volume();
@@ -297,6 +301,14 @@ void initBLE();
 void handleBLE();
 bool initLittleFS();
 bool deretExistsInLittleFS(int slot);
+Word* loadDeretFromLittleFS(int slot);
+void listLirikFiles();
+void freeLoadedWords();
+void displayDeretGeneric(int deretIndex, int page);
+int getDeretPageCount(int deretIndex);
+bool processDeret(JsonObject deret);
+void notifyStatus(const char* status);
+bool saveDeretToLittleFS(int slot, const String& name, const String& jsonWords);
 // ---------------------------------------------
 
 void setup() {
@@ -373,11 +385,28 @@ void setup() {
   
   // Initialize LittleFS
   if (initLittleFS()) {
-    Serial.println("[LFS] Using LittleFS for lyrics storage");
+    Serial.println("[SETUP] LittleFS ready for lyrics storage");
+    // Debug: show which derets have LittleFS data
+    Serial.println("[SETUP] Checking LittleFS deret availability:");
+    for (int i = 1; i <= 10; i++) {
+      Serial.print("[SETUP]   Deret ");
+      Serial.print(i);
+      Serial.print(": ");
+      Serial.println(deretExistsInLittleFS(i) ? "LittleFS ✓" : "Hardcoded (default)");
+    }
+  } else {
+    Serial.println("[SETUP] WARNING: LittleFS failed, using hardcoded data only");
   }
   
   // Initialize BLE Server
   initBLE();
+  
+  Serial.println("[SETUP] ========================================");
+  Serial.println("[SETUP] System initialization COMPLETE");
+  Serial.print("[SETUP] Free heap: ");
+  Serial.print(ESP.getFreeHeap());
+  Serial.println(" bytes");
+  Serial.println("[SETUP] ========================================");
 }
 
 void menu(int pilihan) {
@@ -430,6 +459,8 @@ void screening() {
 }
 
 void loop() {
+  handleBLE(); // Tangani data Bluetooth yang masuk (Decoupled from callback)
+  
   if (digitalRead(buttonPower) == LOW) {
     if (on == true) {
       // isPlaying = false;
@@ -553,7 +584,7 @@ void lirik() {
 
   elapsedTime = millis() - startTime;
 
-  if (currentWord < 21) {
+  if (currentWord < loadedWordCount) {
 
     if (elapsedTime >= words[currentWord].time) {
       tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
@@ -583,25 +614,68 @@ void stopCounter() {
   lastDeret = 0;
 }
 
+// Free memory dari words yang di-load dari LittleFS
+void freeLoadedWords() {
+  if (wordsFromLittleFS && words != NULL) {
+    Serial.println("[MEM] Freeing previously loaded LittleFS words");
+    // Free setiap string yang dialokasikan oleh strdup()
+    for (int i = 0; i < loadedWordCount; i++) {
+      if (words[i].text != NULL) {
+        free((void*)words[i].text);
+      }
+    }
+    // Free array struct itu sendiri
+    delete[] words;
+    words = NULL;
+    wordsFromLittleFS = false;
+    Serial.print("[MEM] Free heap after cleanup: ");
+    Serial.print(ESP.getFreeHeap());
+    Serial.println(" bytes");
+  }
+}
+
 void listderet() {
-  if (deret == 1)
-    words = words1;
-  if (deret == 2)
-    words = words2;
-  if (deret == 3)
-    words = words3;
-  if (deret == 4)
-    words = words4;
-  if (deret == 5)
-    words = words5;
-  if (deret == 6)
-    words = words6;
-  if (deret == 7)
-    words = words7;
-  if (deret == 8)
-    words = words8;
-  if (deret == 9)
-    words = words9;
-  if (deret == 10)
-    words = words10;
+  Serial.println("[DERET] --------------------------------");
+  Serial.print("[DERET] Selecting deret: ");
+  Serial.println(deret);
+  
+  // Free previous LittleFS words if any
+  freeLoadedWords();
+  
+  // Check LittleFS first
+  if (deretExistsInLittleFS(deret)) {
+    Serial.println("[DERET] >> Source: LittleFS (user-updated data)");
+    Word* loaded = loadDeretFromLittleFS(deret);
+    if (loaded != NULL) {
+      words = loaded;
+      wordsFromLittleFS = true;
+      Serial.print("[DERET] Loaded from LittleFS. First word: ");
+      Serial.println(words[0].text);
+      Serial.println("[DERET] --------------------------------");
+      return;
+    } else {
+      Serial.println("[DERET] WARNING: LittleFS load returned NULL, falling back to hardcoded");
+    }
+  } else {
+    Serial.println("[DERET] >> Source: Hardcoded (built-in data)");
+  }
+  
+  // Fallback ke hardcoded
+  wordsFromLittleFS = false;
+  if (deret == 1)  { words = words1;  loadedWordCount = sizeof(words1)  / sizeof(words1[0]);  }
+  if (deret == 2)  { words = words2;  loadedWordCount = sizeof(words2)  / sizeof(words2[0]);  }
+  if (deret == 3)  { words = words3;  loadedWordCount = sizeof(words3)  / sizeof(words3[0]);  }
+  if (deret == 4)  { words = words4;  loadedWordCount = sizeof(words4)  / sizeof(words4[0]);  }
+  if (deret == 5)  { words = words5;  loadedWordCount = sizeof(words5)  / sizeof(words5[0]);  }
+  if (deret == 6)  { words = words6;  loadedWordCount = sizeof(words6)  / sizeof(words6[0]);  }
+  if (deret == 7)  { words = words7;  loadedWordCount = sizeof(words7)  / sizeof(words7[0]);  }
+  if (deret == 8)  { words = words8;  loadedWordCount = sizeof(words8)  / sizeof(words8[0]);  }
+  if (deret == 9)  { words = words9;  loadedWordCount = sizeof(words9)  / sizeof(words9[0]);  }
+  if (deret == 10) { words = words10; loadedWordCount = sizeof(words10) / sizeof(words10[0]); }
+  
+  Serial.print("[DERET] Using hardcoded data. Header: ");
+  Serial.println(words[0].text);
+  Serial.print("[DERET] Word count: ");
+  Serial.println(loadedWordCount);
+  Serial.println("[DERET] --------------------------------");
 }
