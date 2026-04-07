@@ -13,13 +13,19 @@
 #include <Wire.h>
 
 // BLE and LittleFS
+#include "bitmaps_ble.h"
+#include <ArduinoJson.h>
 #include <BLEDevice.h>
-#include <BLEUtils.h>
 #include <BLEServer.h>
+#include <BLEUtils.h>
 #include <FS.h>
 #include <LittleFS.h>
-#include <ArduinoJson.h>
 
+
+// Deklarasi fungsi UI untuk dipanggil di ble_server.ino
+void showSyncingUI(int slot, int total);
+void hideSyncingUI();
+void drawBTIcon();
 
 HardwareSerial mySerial1(1);
 
@@ -85,8 +91,6 @@ unsigned long currentMillis; // Variabele to store the number of milleseconds
                              // since the Arduino has started
 unsigned long currentMillis2;
 
-
-
 bool dokter_bicara = false;
 
 enum ChargerState { NOT_CHARGING, CHARGING, FULL };
@@ -111,10 +115,14 @@ Word *words;
 // === Semua data lirik disimpan di LittleFS, tidak ada hardcoded ===
 
 bool running = false;
-bool wordsFromLittleFS = false; // Track apakah words saat ini dari LittleFS (perlu di-free)
-int loadedWordCount = 21;        // Jumlah elemen aktif dalam array words[] (termasuk header)
-unsigned long lastButtonTime = 0; // Timestamp terakhir tombol ditekan (debounce)
-const unsigned long DEBOUNCE_MS = 250; // Minimum interval antar tekan tombol (ms)
+bool wordsFromLittleFS =
+    false; // Track apakah words saat ini dari LittleFS (perlu di-free)
+int loadedWordCount =
+    21; // Jumlah elemen aktif dalam array words[] (termasuk header)
+unsigned long lastButtonTime =
+    0; // Timestamp terakhir tombol ditekan (debounce)
+const unsigned long DEBOUNCE_MS =
+    250; // Minimum interval antar tekan tombol (ms)
 
 // --- FORWARD DECLARATIONS UNTUK PLATFORMIO ---
 void volume();
@@ -140,14 +148,14 @@ void initBLE();
 void handleBLE();
 bool initLittleFS();
 bool deretExistsInLittleFS(int slot);
-Word* loadDeretFromLittleFS(int slot);
+Word *loadDeretFromLittleFS(int slot);
 void listLirikFiles();
 void freeLoadedWords();
 void displayDeretGeneric(int deretIndex, int page);
 int getDeretPageCount(int deretIndex);
 bool processDeret(JsonObject deret);
-void notifyStatus(const char* status);
-bool saveDeretToLittleFS(int slot, const String& name, const String& jsonWords);
+void notifyStatus(const char *status);
+bool saveDeretToLittleFS(int slot, const String &name, const String &jsonWords);
 void sendCheckPayload();
 String buildCheckPayload();
 // ---------------------------------------------
@@ -170,10 +178,11 @@ void setup() {
   delay(200);
   begin();
   Wire.begin(37, 38);
-  // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai Pullup
+  // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai
+  // Pullup
   pinMode(buttonNext, INPUT_PULLUP);
   pinMode(buttonPause, INPUT_PULLUP);
-  /* 
+  /*
   pinMode(buttonHome, INPUT);
   pinMode(buttonPrevious, INPUT);
   gpio_pulldown_en(GPIO_NUM_2); // aktifkan internal pull-down
@@ -225,7 +234,7 @@ void setup() {
   readRTC();
   digitalWrite(TrigMic, HIGH);
   digitalWrite(TrigRlyDF, HIGH);
-  
+
   // Initialize LittleFS
   if (initLittleFS()) {
     Serial.println("[SETUP] LittleFS ready for lyrics storage");
@@ -235,15 +244,17 @@ void setup() {
       Serial.print("[SETUP]   Deret ");
       Serial.print(i);
       Serial.print(": ");
-      Serial.println(deretExistsInLittleFS(i) ? "LittleFS ✓" : "Hardcoded (default)");
+      Serial.println(deretExistsInLittleFS(i) ? "LittleFS ✓"
+                                              : "Hardcoded (default)");
     }
   } else {
-    Serial.println("[SETUP] WARNING: LittleFS failed, using hardcoded data only");
+    Serial.println(
+        "[SETUP] WARNING: LittleFS failed, using hardcoded data only");
   }
-  
+
   // Initialize BLE Server
   initBLE();
-  
+
   Serial.println("[SETUP] ========================================");
   Serial.println("[SETUP] System initialization COMPLETE");
   Serial.print("[SETUP] Free heap: ");
@@ -303,7 +314,14 @@ void screening() {
 
 void loop() {
   handleBLE(); // Tangani data Bluetooth yang masuk
-  
+
+  // Update Status Bluetooth di Layar secara berkala
+  static unsigned long lastBTCheck = 0;
+  if (millis() - lastBTCheck > 1000) {
+    drawBTIcon();
+    lastBTCheck = millis();
+  }
+
   if (digitalRead(buttonPower) == LOW) {
     if (on == true) {
       // isPlaying = false;
@@ -465,7 +483,7 @@ void freeLoadedWords() {
     // Free setiap string
     for (int i = 0; i < loadedWordCount; i++) {
       if (words[i].text != NULL) {
-        free((void*)words[i].text); // strdup uses malloc
+        free((void *)words[i].text); // strdup uses malloc
       }
     }
     // Free array struct
@@ -481,17 +499,17 @@ void freeLoadedWords() {
 void listderet() {
   // Selalu bersihkan data sebelumnya
   freeLoadedWords();
-  
+
   // Muat dari LittleFS
   if (deretExistsInLittleFS(deret)) {
-    Word* loaded = loadDeretFromLittleFS(deret);
+    Word *loaded = loadDeretFromLittleFS(deret);
     if (loaded != NULL) {
       words = loaded;
       wordsFromLittleFS = true;
       return;
     }
   }
-  
+
   // Slot tidak ada di LittleFS - bersihkan pointer
   words = NULL;
   wordsFromLittleFS = false;
@@ -501,3 +519,55 @@ void listderet() {
   Serial.println(" tidak ada di LittleFS.");
 }
 
+// --- FUNGSI UI BLE (TFT) ---
+void drawBTIcon() {
+  extern bool bleConnected;
+  int x = 60; // Spasi aman dari jam
+  int y = 1;  // Koordinat Y diangkat ke atas agar lebih pas
+  int w = 5;  // Lebar ikon
+  int h = 8;  // Tinggi ikon 8px tetap agar proporsional jam
+
+  if (bleConnected) {
+    uint16_t color = ST77XX_CYAN;
+
+    // Simbol Bluetooth (Fine-Tuned 8px Alignment)
+    tft.drawLine(x + w / 2, y, x + w / 2, y + h, color);         // Vertikal
+    tft.drawLine(x + w / 2, y, x + w, y + h / 4, color);         // Atas
+    tft.drawLine(x + w, y + h / 4, x, y + 3 * h / 4, color);     // Silang bawah
+    tft.drawLine(x, y + h / 4, x + w, y + 3 * h / 4, color);     // Silang atas
+    tft.drawLine(x + w, y + 3 * h / 4, x + w / 2, y + h, color); // Bawah
+  } else {
+    // Hapus total area bluetooth jika putus
+    tft.fillRect(x, y - 1, w + 2, h + 2, ST77XX_BLACK);
+  }
+}
+
+void showSyncingUI(int slot, int total) {
+  // Simpan layar ke PSRAM atau cukup gambar overlay sederhana
+  tft.fillRect(0, 40, 128, 80, ST77XX_BLACK);
+  tft.drawRect(5, 45, 118, 70, ST77XX_CYAN);
+
+  tft.setFont(NULL); // Gunakan font standar agar cepat
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(15, 55);
+  tft.print("SYNCING LIRIK...");
+
+  tft.setCursor(15, 75);
+  tft.print("Saving Slot: ");
+  tft.print(slot);
+
+  // Progress Bar
+  tft.drawRect(15, 95, 98, 10, ST77XX_WHITE);
+  int progressW = (slot * 94) / 10; // Asumsi 10 slot total
+  tft.fillRect(17, 97, progressW, 6, ST77XX_CYAN);
+}
+
+void hideSyncingUI() {
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setFont(&FreeSans9pt7b);
+  if (posisi == 1) { /* Redraw menu */
+  } else if (posisi == 2) {
+    screening();
+  }
+  // Trigger redraw melalui home() atau fungsi menu terkait
+}

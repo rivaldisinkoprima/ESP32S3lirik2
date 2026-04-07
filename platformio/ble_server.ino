@@ -216,11 +216,16 @@ void parseBlePayload(const String& payload) {
     
     if (doc.is<JsonArray>()) {
         JsonArray array = doc.as<JsonArray>();
+        int total = array.size();
+        int current = 0;
         for (JsonObject deret : array) {
+            current++;
+            showSyncingUI(deret["d"] | current, total);
             if (processDeret(deret)) successCount++;
             else failCount++;
         }
     } else if (doc.is<JsonObject>()) {
+        showSyncingUI(doc["d"] | 1, 1);
         if (processDeret(doc.as<JsonObject>())) successCount++;
         else failCount++;
     }
@@ -232,6 +237,15 @@ void parseBlePayload(const String& payload) {
     String statusMsg = "OK:" + String(successCount) + "/" + String(successCount + failCount);
     notifyStatus(statusMsg.c_str());
     
+    // Tampilkan pesan sukses di TFT sebentar sebelum balik ke menu
+    tft.fillRect(0, 40, 128, 80, ST77XX_BLACK);
+    tft.drawRect(5, 45, 118, 70, ST77XX_GREEN);
+    tft.setCursor(15, 75);
+    tft.setTextColor(ST77XX_GREEN);
+    tft.print("SYNC SUCCESS!");
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    
+    hideSyncingUI();
     listLirikFiles();
 }
 
