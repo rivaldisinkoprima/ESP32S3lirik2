@@ -1,6 +1,6 @@
 
 void oke() {
-    if (digitalRead(buttonPause) == HIGH && millis() - lastButtonTime > DEBOUNCE_MS) {
+    if (digitalRead(buttonPause) == LOW && millis() - lastButtonTime > DEBOUNCE_MS) {
         lastButtonTime = millis();
         
         if (posisi == 1) {

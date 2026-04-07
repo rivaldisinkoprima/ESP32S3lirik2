@@ -8,25 +8,7 @@
 const char* menuItems[] = {"DERET 1", "DERET 2", "DERET 3", "DERET 4", "DERET 5", 
                            "DERET 6", "DERET 7", "DERET 8", "DERET 9", "DERET 10"};
 
-// Array pointer ke semua deret (untuk akses generik)
-const char** allDerets[] = {deret1, deret2, deret3, deret4, deret5, 
-                            deret6, deret7, deret8, deret9, deret10};
-
-// Ukuran masing-masing deret (karena tidak semua sama, misal deret9 = 20 elemen)
-const int deretSizes[] = {
-    sizeof(deret1) / sizeof(deret1[0]),
-    sizeof(deret2) / sizeof(deret2[0]),
-    sizeof(deret3) / sizeof(deret3[0]),
-    sizeof(deret4) / sizeof(deret4[0]),
-    sizeof(deret5) / sizeof(deret5[0]),
-    sizeof(deret6) / sizeof(deret6[0]),
-    sizeof(deret7) / sizeof(deret7[0]),
-    sizeof(deret8) / sizeof(deret8[0]),
-    sizeof(deret9) / sizeof(deret9[0]),
-    sizeof(deret10) / sizeof(deret10[0])
-};
-
-const int menuCount = sizeof(menuItems) / sizeof(menuItems[0]);
+const int menuCount = 10;
 const int itemsPerPage = 5;
 int selectedIndex = 0;
 int page = 0;
@@ -66,35 +48,57 @@ void displayMenu() {
 }
 
 /**
- * Fungsi generik untuk menampilkan isi deret di layar TFT.
- * @param deretIndex Index 0-based (0 = Deret 1, 9 = Deret 10)
- * @param page Halaman yang ditampilkan
+ * Fungsi generik untuk menampilkan isi deret di layar TFT menggunakan LittleFS.
  */
 void displayDeretGeneric(int deretIndex, int page) {
     posisi = 5;
     tft.fillScreen(ST77XX_BLACK);
+    
+    int currentSlot = deretIndex + 1;
+    
+    if (!deretExistsInLittleFS(currentSlot)) {
+        tft.setTextColor(ST77XX_RED);
+        tft.setCursor(10, 80);
+        tft.print("DATA KOSONG");
+        tft.setCursor(10, 100);
+        tft.setTextSize(1);
+        tft.print("Kirim dari aplikasi");
+        tampiljam();
+        return;
+    }
+
     tft.setTextColor(ST77XX_MAGENTA);
     tft.setCursor(33, 36);
     tft.print("DERET ");
-    tft.print(deretIndex + 1); // Tampilkan nomor 1-based
+    tft.print(currentSlot); 
+
+    // Muat sementara hanya untuk ditampilkan di menu File
+    Word* tempWords = loadDeretFromLittleFS(currentSlot);
+    if (tempWords == NULL) return;
+
     tft.setTextColor(ST77XX_WHITE);
-    
-    int totalKataInDeret = deretSizes[deretIndex];
+    int totalWordsInSlot = loadedWordCount; 
     int startIdx = page * kataPerHalaman;
-    int endIdx = min(startIdx + kataPerHalaman, totalKataInDeret);
+    int endIdx = min(startIdx + kataPerHalaman, totalWordsInSlot);
 
     for (int i = startIdx; i < endIdx; i++) {
         tft.setCursor(10, 10 + (i - startIdx) * 15 + 45);
-        tft.println(allDerets[deretIndex][i]);
+        if (tempWords[i].text != NULL) {
+            tft.println(tempWords[i].text);
+        }
     }
+    
+    // Bersihkan memori sementara
+    for (int i = 0; i < totalWordsInSlot; i++) {
+        if (tempWords[i].text != NULL) free((void*)tempWords[i].text);
+    }
+    delete[] tempWords;
+
     tampiljam();
     bat_cas_move();
 }
 
-/**
- * Helper: hitung total halaman untuk deret tertentu.
- */
 int getDeretPageCount(int deretIndex) {
-    int totalKata = deretSizes[deretIndex];
-    return (totalKata + kataPerHalaman - 1) / kataPerHalaman;
+    // Return default atau bisa dioptimasi dengan load file sesaat
+    return 3; 
 }

@@ -1,6 +1,6 @@
 int p = 1;
 void nextp(){
-      if (digitalRead(buttonNext) == HIGH && millis() - lastButtonTime > DEBOUNCE_MS) {
+      if (digitalRead(buttonNext) == LOW && millis() - lastButtonTime > DEBOUNCE_MS) {
         lastButtonTime = millis();
         
         if (posisi==1){ 

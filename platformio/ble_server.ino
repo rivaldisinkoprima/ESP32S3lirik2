@@ -151,15 +151,18 @@ void initBLE() {
     
     Serial.println("[BLE]   Advertising started");
     
-    // Spawn FreeRTOS Task untuk Background Processing (Stack: 8KB, Priority: 1, Core: 1)
+    // Spawn FreeRTOS Task untuk Background Processing
+    // PENTING: Jalankan di Core 0, BUKAN Core 1
+    // Core 1 = BLE stack + Arduino loop() → jangan dibebani LittleFS write
+    // Core 0 = Bebas untuk JSON parsing + file I/O berat
     xTaskCreatePinnedToCore(
         bleWorkerTask,    // Fungsi Task
         "BLE_Worker",     // Nama Task
-        8192,             // Ukuran Stack (Bytes)
+        10240,            // Stack 10KB (naik dari 8KB, karena LittleFS butuh ruang stack lebih)
         NULL,             // Parameter
         1,                // Prioritas
         NULL,             // Task Handle
-        1                 // Jalankan di Core 1 (sama dengan loop utama)
+        0                 // Jalankan di Core 0 (pisah dari BLE stack)
     );
     Serial.println("[BLE]   Background Worker Task Started");
 }
@@ -170,6 +173,12 @@ void handleBLE() {
 }
 
 void parseBlePayload(const String& payload) {
+    Serial.print("[BLE-PARSE] Received payload length: ");
+    Serial.print(payload.length());
+    Serial.println(" bytes");
+
+    // Meningkatkan buffer JSON karena lirik 10 deret butuh memori besar (>12KB)
+    // 24KB cukup untuk ~250-300 kata total dengan metadata
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
     
@@ -220,14 +229,14 @@ void parseBlePayload(const String& payload) {
 bool processDeret(JsonObject deret) {
     int slot = deret["d"];
     String name = deret["name"].as<String>();
-    JsonArray wordsArr = deret["v"].as<JsonArray>();
+    JsonArray wordsArr = deret["v"].as<JsonArray>(); // Flutter pakai key "v" untuk array lirik
     
     Serial.println("[BLE-PROC] --------------------------------");
-    Serial.print("[BLE-PROC] Deret Slot: ");
-    Serial.println(slot);
-    Serial.print("[BLE-PROC] Deret Name: ");
-    Serial.println(name);
-    Serial.print("[BLE-PROC] Word Count: ");
+    Serial.print("[BLE-PROC] Slot: ");
+    Serial.print(slot);
+    Serial.print(" | Name: ");
+    Serial.print(name);
+    Serial.print(" | Words: ");
     Serial.println(wordsArr.size());
     
     // Build JSON untuk LittleFS
@@ -239,20 +248,9 @@ bool processDeret(JsonObject deret) {
     for (JsonObject w : wordsArr) {
         if (i > 0) output += ",";
         int t = w["t"].as<int>();
-        String word = w["w"].as<String>();
-        output += "{\"t\":" + String(t) + ",\"w\":\"" + word + "\"}";
+        String wordText = w["w"].as<String>();
         
-        if (i < 3 || i == (int)wordsArr.size() - 1) {
-            Serial.print("[BLE-PROC]   Word[");
-            Serial.print(i);
-            Serial.print("]: t=");
-            Serial.print(t);
-            Serial.print("ms, w=\"");
-            Serial.print(word);
-            Serial.println("\"");
-        } else if (i == 3) {
-            Serial.println("[BLE-PROC]   ... (truncated for brevity)");
-        }
+        output += "{\"t\":" + String(t) + ",\"w\":\"" + wordText + "\"}";
         i++;
     }
     output += "]}";

@@ -23,7 +23,7 @@ void previouse(){
             if (mode==3) {myDFPlayer.playFolder(3,deret);}
              myDFPlayer.pause();
              isPlaying=false;}
-             currentIndex = 0;
+             currentWord = 0;
             Serial.println("Previous Song..");
             }
       else if (posisi==3){

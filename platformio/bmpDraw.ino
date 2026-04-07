@@ -23,7 +23,8 @@ void bmpDraw(char *filename, uint8_t x, uint16_t y) {
   Serial.println('\'');
 
   // Open requested file on SD card
-  if ((bmpFile = SD.open(filename)) == NULL) {
+  bmpFile = SD.open(filename);
+  if (!bmpFile) {
     myDFPlayer.stop();
     isPlaying = false;  
     tft.setCursor(45,55);

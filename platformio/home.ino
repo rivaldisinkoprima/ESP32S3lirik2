@@ -6,7 +6,7 @@ void home(){
       myDFPlayer.stop();
       //isPlaying = true;
       //deret = 1;
-      currentIndex = 0;
+      currentWord = 0;
       if (posisi == 5){
       file();
       halaman=0;} 

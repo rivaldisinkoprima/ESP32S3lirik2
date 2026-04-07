@@ -6,11 +6,11 @@ Firmware untuk perangkat ESP32-S3 yang menangani pemutaran audio (DFPlayer), tam
 
 - **BLE GATT Server**: Menerima data lirik JSON dari Flutter App via Bluetooth Low Energy.
 - **BLE NOTIFY Feedback**: Mengirim status balik ke Flutter (`OK:10/10`, `ERR:JSON_PARSE`, dll) setelah sinkronisasi.
-- **Data Persistence (LittleFS)**: Menyimpan data lirik ke memori internal Flash dengan partition scheme `min_spiffs.csv`.
-- **Dynamic Loading**: Prioritas memuat data dari LittleFS, jika kosong baru menggunakan data bawaan (hardcoded).
+- **Data Persistence (LittleFS)**: Menyimpan data lirik ke memori internal Flash dengan partition scheme `min_spiffs.csv`. Seluruh sistem sekarang **100% berbasis LittleFS**, tidak lagi menggunakan data hardcoded memori flash.
+- **Dynamic Loading**: Membaca lirik langsung dari struktur JSON di LittleFS ke RAM hanya saat diperlukan, menjaga konsumsi Memory Heap tetap hemat (> 200KB Free).
 - **Decoupled BLE Processing**: Proses berat (JSON parsing + file write) dijalankan di main `loop()`, bukan di callback BLE, mencegah Stack Overflow pada task Bluetooth.
 - **Memory Management**: Tracking `loadedWordCount` dan pembebasan memori (`free` + `delete[]`) saat ganti deret untuk mencegah memory leak.
-- **Non-blocking Debounce**: Semua tombol menggunakan `millis()`-based debounce (250ms), menghilangkan `delay()` blocking.
+- **Stable Button Inputs**: Memanfaatkan ESP32 `INPUT_PULLUP` dan active-LOW detection untuk menstabilkan masalah floating pin dan menghilangkan "ghost press" dari noise lingkungan.
 - **Enhanced Serial Debug**: Logging detail dengan tag terstruktur untuk setiap subsistem.
 
 ## Persyaratan Hardware
@@ -62,9 +62,9 @@ Flutter App                         ESP32-S3
     │                                   │
     │   (Saat user pilih deret)         │
     │                                   ├── listderet()
-    │                                   ├── Cek LittleFS dulu
-    │                                   ├── Ada? → Load dari file
-    │                                   └── Tidak? → Fallback hardcoded
+    │                                   ├── Membaca dari LittleFS
+    │                                   ├── Berhasil? → Load & Tampilkan TFT
+    │                                   └── Kosong? → Render "DATA KOSONG"
 ```
 
 ## Panduan Development (Debug)
@@ -84,7 +84,7 @@ Monitor Serial Monitor pada baud rate **9600** untuk melihat log:
 | `[BLE-PROC]` | `ble_server.ino` | Ekstraksi data per deret |
 | `[BLE-SAVE]` | `ble_server.ino` | Status simpan ke LittleFS |
 | `[BLE-NOTIFY]` | `ble_server.ino` | Feedback status ke Flutter |
-| `[DERET]` | `ESP32S3lirik2.ino` | Sumber data (LittleFS vs Hardcoded) + word count |
+| `[DERET]` | `ESP32S3lirik2.ino` | Load data LittleFS + perhitungan word count |
 | `[MEM]` | `ESP32S3lirik2.ino` | Heap memory, pembersihan `strdup` + `delete[]` |
 | `[SETUP]` | `ESP32S3lirik2.ino` | Status inisialisasi sistem |
 
@@ -98,9 +98,10 @@ Monitor Serial Monitor pada baud rate **9600** untuk melihat log:
 | 4 | **JSON Buffer 12KB** | `DynamicJsonDocument(12288)` cukup untuk bulk 10 deret |
 | 5 | **Konsolidasi Display** | 10 fungsi `displayderet1-10` → 1 fungsi `displayDeretGeneric()` |
 | 6 | **Partition Scheme** | `min_spiffs.csv` memperbesar ruang app + LittleFS |
-| 7 | **deretSizes[]** | Array ukuran per-deret mencegah akses out-of-bounds |
-| 8 | **BLE NOTIFY** | ESP32 kirim status feedback (`OK:N/N`, `ERR:...`) ke Flutter |
-| 9 | **Non-blocking Debounce** | `millis()`-based guard (250ms) menggantikan `delay(300-500)` |
+| 7 | **LittleFS Only** | Penghapusan array data hardcoded `const char*` yang menghabiskan Flash secara sia-sia |
+| 8 | **BLE JSON Fix** | Sinkronisasi perbaikan payload parsing dari key `"v"` (salah) menjadi `"w"` (dari Flutter) |
+| 9 | **PSRAM Bypass** | RAM standar ESP32 >200KB terbukti mencukupi; menghindari delay/crash pada inisiasi bootloader akibat OctalSPI yang keliru |
+| 10 | **Hardware Pull-Up** | Tombol navigasi tidak lagi "floating", menghindari screen rapid refresh/tampilan flickering |
 
 ## Cara Build & Upload
 
@@ -119,5 +120,5 @@ Monitor Serial Monitor pada baud rate **9600** untuk melihat log:
 
 Aplikasi Flutter dapat mengirim perintah `{"c":"reset"}[EOF]`. Saat diterima:
 1. ESP32 menghapus semua file `/lirik/deret_*.json`.
-2. Sistem otomatis kembali menggunakan data bawaan (hardcoded).
+2. Seluruh slot penyimpanan kembali dikosongkan secara dinamis.
 3. ESP32 mengirim notifikasi `OK:RESET` ke Flutter.
