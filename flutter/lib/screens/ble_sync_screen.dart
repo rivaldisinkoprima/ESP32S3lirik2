@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../providers/ble_provider.dart';
@@ -20,6 +21,7 @@ class BleSyncScreen extends StatefulWidget {
 
 class _BleSyncScreenState extends State<BleSyncScreen> {
   bool _isSyncing = false;
+  bool _syncSuccessDone = false;
   double _syncProgress = 0.0;
   String _syncStatus = '';
   int _syncedDerets = 0;
@@ -262,42 +264,45 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                width: 60,
-                height: 60,
-                child: LoadingAnimationWidget.inkDrop(
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 50,
+                height: 100, // Memberikan ruang cukup untuk animasi vanish
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 800),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
+                    );
+                  },
+                  child: _syncSuccessDone 
+                    ? const SizedBox.shrink(key: ValueKey('vanishingInk'))
+                    : LoadingAnimationWidget.inkDrop(
+                        key: const ValueKey('loadingInk'),
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 50,
+                      ),
                 ),
               ),
-              Text(
-                _syncStatus,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              const SizedBox(height: 12),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 1000),
+                curve: Curves.elasticOut,
                 textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: _syncSuccessDone ? 24 : 18,
+                  fontWeight: FontWeight.bold,
+                  color: _syncSuccessDone ? Colors.green : Theme.of(context).colorScheme.onSurface,
+                  shadows: _syncSuccessDone ? [
+                    Shadow(
+                      color: Colors.green.withOpacity(0.5),
+                      blurRadius: 20,
+                      offset: const Offset(0, 0),
+                    )
+                  ] : [],
+                ),
+                child: Text(_syncStatus),
               ),
               // Bubble detail track dihapus sesuai permintaan
-              if (ble.lastStatus.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: ble.lastStatus.startsWith('OK') 
-                        ? Colors.green.withAlpha(30) 
-                        : Colors.red.withAlpha(30),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Device Response: ${ble.lastStatus}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ),
-              ],
+              // Device Response (OK:n/n) disembunyikan dari UI agar lebih bersih
             ],
           ),
         ),
@@ -361,37 +366,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 ),
               ),
               
-              if (ble.lastStatus.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: ble.lastStatus.startsWith('OK') ? Colors.green.withAlpha(20) : Colors.red.withAlpha(20),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ble.lastStatus.startsWith('OK') ? Colors.green.withAlpha(50) : Colors.red.withAlpha(50)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                         ble.lastStatus.startsWith('OK') ? LucideIcons.checkCircle : LucideIcons.alertCircle,
-                         color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
-                         size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          ble.lastStatus,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ble.lastStatus.startsWith('OK') ? Colors.green.shade700 : Colors.red.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                ),
-              ],
+              // Device Response Card dibuang sesuai instruksi UX minimalis
 
               const SizedBox(height: 40),
               
@@ -616,6 +591,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
 
     setState(() {
       _isSyncing = true;
+      _syncSuccessDone = false;
       _syncProgress = 0.0;
       _syncStatus = _l10n?.translate('preparingData') ?? 'Preparing data...';
       _syncedDerets = 0;
@@ -631,6 +607,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         _syncStatus = _l10n?.translate('sendingData') ?? 'Sending data to device...';
         _syncProgress = 0.5; // Tandai sudah kirim
       });
+      HapticFeedback.lightImpact(); // Haptic: Mulai Sync
       await ble.writeBatchJson(payload);
 
       // 3. Menunggu Feedback Nyata dari ESP32 (NOTIFY OK:n/n)
@@ -660,14 +637,22 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       }
 
       // 4. Selesai
+      HapticFeedback.vibrate(); // Getaran standar yang lebih kuat untuk Android
+      HapticFeedback.mediumImpact(); 
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) HapticFeedback.vibrate();
+      });
+
       setState(() {
         _syncProgress = 1.0;
         _syncStatus = _l10n?.translate('doneSync') ?? 'Done!';
         _syncedDerets = syncedDerets.length;
         _syncedWords = totalWords;
+        _syncSuccessDone = true; // Trigger Scaling Check Icon Animation
       });
 
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 2000)); // Biarkan user menikmati animasi membal sebentar
+
       
       // Popup Snackbar sukses dihapus sesuai permintaan
     } catch (e) {
