@@ -1,3 +1,4 @@
+import 'package:lucide_icons/lucide_icons.dart';
 // BLE Sync Screen
 //
 // Routes: '/sync'
@@ -66,7 +67,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.bluetooth_searching,
+              LucideIcons.bluetoothSearching,
               size: 60,
               color: Theme.of(context).colorScheme.outlineVariant,
             ),
@@ -149,7 +150,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isTarget ? Icons.bluetooth_connected_rounded : Icons.bluetooth_rounded,
+                    isTarget ? LucideIcons.bluetoothConnected : LucideIcons.bluetooth,
                     color: isTarget ? Colors.green.shade700 : Theme.of(context).colorScheme.outline,
                     size: 24,
                   ),
@@ -340,7 +341,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                           ]
                         ),
                         child: const Icon(
-                          Icons.device_hub_rounded,
+                          LucideIcons.cpu,
                           size: 48,
                           color: Colors.green,
                         ),
@@ -372,7 +373,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                   child: Row(
                     children: [
                       Icon(
-                         ble.lastStatus.startsWith('OK') ? Icons.check_circle : Icons.error,
+                         ble.lastStatus.startsWith('OK') ? LucideIcons.checkCircle : LucideIcons.alertCircle,
                          color: ble.lastStatus.startsWith('OK') ? Colors.green : Colors.red,
                          size: 20,
                       ),
@@ -414,7 +415,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.cloud_upload_rounded),
+                        const Icon(LucideIcons.uploadCloud),
                         const SizedBox(width: 8),
                         Text(
                           _l10n?.translate('syncAllToDevice') ?? 'Sync All to Device',
@@ -437,7 +438,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                                    height: 16,
                                    child: CircularProgressIndicator(strokeWidth: 2),
                                  )
-                               : const Icon(Icons.storage_rounded, size: 20),
+                               : const Icon(LucideIcons.hardDrive, size: 20),
                            label: Text(ble.isChecking ? 'Checking...' : 'Check Storage', style: const TextStyle(fontSize: 13)),
                            style: OutlinedButton.styleFrom(
                              padding: const EdgeInsets.symmetric(vertical: 12),
@@ -449,7 +450,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                        Expanded(
                          child: OutlinedButton.icon(
                            onPressed: () => _confirmReset(context, ble),
-                           icon: Icon(Icons.restore_rounded, color: Colors.orange.shade700, size: 20),
+                           icon: Icon(LucideIcons.rotateCcw, color: Colors.orange.shade700, size: 20),
                            label: Text(_l10n?.translate('factoryReset') ?? 'Factory Reset', style: TextStyle(color: Colors.orange.shade700, fontSize: 13)),
                            style: OutlinedButton.styleFrom(
                              padding: const EdgeInsets.symmetric(vertical: 12),
@@ -465,7 +466,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                   // Disconnect Button
                   TextButton.icon(
                     onPressed: () => ble.disconnect(),
-                    icon: Icon(Icons.bluetooth_disabled_rounded, color: Colors.red.shade400, size: 20),
+                    icon: Icon(LucideIcons.bluetoothOff, color: Colors.red.shade400, size: 20),
                     label: Text(_l10n?.translate('disconnect') ?? 'Disconnect Device', style: TextStyle(color: Colors.red.shade400)),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.all(16),
@@ -503,7 +504,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       floatingActionButton: !ble.isConnected
           ? FloatingActionButton(
               onPressed: ble.isScanning ? ble.stopScan : ble.startScan,
-              child: Icon(ble.isScanning ? Icons.stop : Icons.search),
+              child: Icon(ble.isScanning ? LucideIcons.square : LucideIcons.search),
             )
           : null,
     );
@@ -521,8 +522,8 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         children: [
           Icon(
             ble.isConnected
-                ? Icons.bluetooth_connected
-                : Icons.bluetooth_disabled,
+                ? LucideIcons.bluetoothConnected
+                : LucideIcons.bluetoothOff,
             color: ble.isConnected ? Colors.green : Colors.red,
           ),
           const SizedBox(width: 8),
@@ -750,7 +751,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         contentPadding: EdgeInsets.zero,
         title: Row(
           children: [
-            const Icon(Icons.storage, color: Colors.blue, size: 20),
+            const Icon(LucideIcons.hardDrive, color: Colors.blue, size: 20),
             const SizedBox(width: 8),
             Text(
               'ESP32 Storage (${results.length} deret)',
@@ -767,7 +768,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.folder_off, size: 48, color: Colors.grey),
+                        Icon(LucideIcons.folderX, size: 48, color: Colors.grey),
                         SizedBox(height: 8),
                         Text(
                           'Tidak ada deret tersimpan di ESP32.\nSilakan sync terlebih dahulu.',

@@ -1,3 +1,4 @@
+import 'package:lucide_icons/lucide_icons.dart';
 // Home Screen
 //
 // Routes: '/'
@@ -200,17 +201,17 @@ class _HomeScreenState extends State<HomeScreen> {
               shrinkWrap: true,
               children: [
                 _buildPreviewItem(
-                  Icons.audio_file,
+                  LucideIcons.fileAudio,
                   l10n?.translate('audioFiles') ?? 'Audio Files',
                   l10n?.translate('audioFilesCount', ['$audioImported']) ?? '$audioImported files',
                 ),
                 _buildPreviewItem(
-                  Icons.text_fields,
+                  LucideIcons.type,
                   l10n?.translate('lyrics') ?? 'Lyrics',
                   l10n?.translate('lyricsWordsCount', ['$wordsImported']) ?? '$wordsImported words',
                 ),
                 _buildPreviewItem(
-                  Icons.playlist_play,
+                  LucideIcons.playSquare,
                   l10n?.translate('tracks') ?? 'Tracks',
                   l10n?.translate('tracksSlotsCount', ['${importedDerets.length}']) ?? '${importedDerets.length} slots',
                 ),
@@ -459,12 +460,12 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(l10n?.translate('appName') ?? 'Lirik Sync'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.folder_open),
+            icon: const Icon(LucideIcons.folderOpen),
             onPressed: _bulkImport,
             tooltip: l10n?.translate('importFiles') ?? 'Import files',
           ),
           IconButton(
-            icon: const Icon(Icons.auto_awesome),
+            icon: const Icon(LucideIcons.sparkles),
             onPressed: workspace.derets.isEmpty ? null : _autoDetectAll,
             tooltip: l10n?.translate('scanAll') ?? 'Scan all',
           ),
@@ -480,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 children: [
                   Icon(
-                    Icons.warning_amber,
+                    LucideIcons.alertTriangle,
                     color: Theme.of(context).colorScheme.onTertiaryContainer,
                     size: 20,
                   ),
@@ -497,7 +498,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   IconButton(
                     icon: Icon(
-                      Icons.close,
+                      LucideIcons.x,
                       size: 18,
                       color: Theme.of(context).colorScheme.onTertiaryContainer,
                     ),
@@ -600,8 +601,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 child: Icon(
                                   deret.isSynced
-                                      ? Icons.check_circle_rounded
-                                      : Icons.music_note_rounded,
+                                      ? LucideIcons.checkCircle
+                                      : LucideIcons.music,
                                   color: deret.isSynced
                                       ? Theme.of(context).colorScheme.onSecondaryContainer
                                       : Theme.of(context).colorScheme.outline,
@@ -621,7 +622,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontWeight: deret.isSynced ? FontWeight.w500 : FontWeight.normal,
                                 ),
                               ),
-                              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.outlineVariant),
+                              trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.outlineVariant),
                             ),
                           ),
                         ),
@@ -646,7 +647,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
-        icon: const Icon(Icons.add_rounded),
+        icon: const Icon(LucideIcons.plus),
         label: Text(l10n?.translate('Add') ?? 'New Track', style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
@@ -658,7 +659,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.playlist_add_circle,
+            LucideIcons.folderPlus,
             size: 80,
             color: Theme.of(context).colorScheme.outlineVariant,
           ),

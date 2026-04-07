@@ -1,3 +1,4 @@
+import 'package:lucide_icons/lucide_icons.dart';
 // Main Entry Point
 //
 // App: Lirik Sync V2
@@ -86,7 +87,7 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.bluetooth_disabled, color: Colors.red),
+            const Icon(LucideIcons.bluetoothOff, color: Colors.red),
             const SizedBox(width: 8),
             Expanded(child: Text(AppLocalizations.of(ctx)?.translate('bluetoothOff') ?? 'Bluetooth Off')),
           ],

@@ -1,3 +1,4 @@
+import 'package:lucide_icons/lucide_icons.dart';
 // Settings Screen
 //
 // Routes: '/settings'
@@ -217,7 +218,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 _buildInfoCard(
-                  icon: Icons.arrow_forward,
+                  icon: LucideIcons.arrowRight,
                   color: Colors.green,
                   title: AppLocalizations.of(context)?.translate('positiveOffset') ?? 'Offset Positif (+)',
                   desc:
@@ -225,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 8),
                 _buildInfoCard(
-                  icon: Icons.arrow_back,
+                  icon: LucideIcons.arrowLeft,
                   color: Colors.red,
                   title: AppLocalizations.of(context)?.translate('negativeOffset') ?? 'Offset Negatif (-)',
                   desc:
@@ -249,7 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 );
                               },
-                        icon: const Icon(Icons.restore, size: 18),
+                        icon: const Icon(LucideIcons.history, size: 18),
                         label: Text(AppLocalizations.of(context)?.translate('reset') ?? 'Reset'),
                       ),
                     ),
@@ -282,7 +283,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : (AppLocalizations.of(context)?.translate('darkModeDisabled') ?? 'Light theme enabled'),
                 ),
                 secondary: Icon(
-                  themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  themeProvider.isDarkMode ? LucideIcons.moon : LucideIcons.sun,
                   size: 28,
                 ),
                 value: themeProvider.isDarkMode,
@@ -315,7 +316,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   ListTile(
 
-                    leading: const Icon(Icons.language, size: 28),
+                    leading: const Icon(LucideIcons.globe, size: 28),
                     title: Text(l10n?.translate('language') ?? 'Language'),
                     subtitle: Text(
                       localeProvider.locale.languageCode == 'en'

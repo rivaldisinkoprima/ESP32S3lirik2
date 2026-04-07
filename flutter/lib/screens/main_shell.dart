@@ -1,3 +1,4 @@
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'home_screen.dart';
@@ -40,18 +41,18 @@ class _MainShellState extends State<MainShell> {
         },
         destinations: [
           NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home),
+            icon: const Icon(LucideIcons.home),
+            selectedIcon: const Icon(LucideIcons.home),
             label: l10n?.translate('homeTitle') ?? 'Home',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.bluetooth_outlined),
-            selectedIcon: const Icon(Icons.bluetooth),
+            icon: const Icon(LucideIcons.bluetooth),
+            selectedIcon: const Icon(LucideIcons.bluetooth),
             label: l10n?.translate('syncTitle') ?? 'Sync',
           ),
           NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
+            icon: const Icon(LucideIcons.settings),
+            selectedIcon: const Icon(LucideIcons.settings),
             label: l10n?.translate('settingsTitle') ?? 'Settings',
           ),
         ],

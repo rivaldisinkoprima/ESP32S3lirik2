@@ -1,3 +1,4 @@
+import 'package:lucide_icons/lucide_icons.dart';
 // Track Editor Screen
 //
 // Routes: Via Navigator.push from HomeScreen
@@ -858,7 +859,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
             title: Text(_l10n?.translate('editTrack', ['${widget.slotNumber}']) ?? 'Edit Track ${widget.slotNumber}'),
             actions: [
               IconButton(
-                icon: const Icon(Icons.check),
+                icon: const Icon(LucideIcons.check),
                 onPressed: _save,
                 tooltip: _l10n?.translate('save') ?? 'Save',
               ),
@@ -894,7 +895,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                         ),
                         ElevatedButton.icon(
                           onPressed: _pickAudioFile,
-                          icon: const Icon(Icons.audio_file),
+                          icon: const Icon(LucideIcons.fileAudio),
                           label: Text(_l10n?.translate('open') ?? 'Open'),
                         ),
                       ],
@@ -913,7 +914,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                         ),
                         ElevatedButton.icon(
                           onPressed: _importWordsFromJson,
-                          icon: const Icon(Icons.file_upload, size: 18),
+                          icon: const Icon(LucideIcons.upload, size: 18),
                           label: Text(_l10n?.translate('import') ?? 'Import'),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
@@ -942,8 +943,8 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                             icon: Icon(
                               _playerController.playerState ==
                                       PlayerState.playing
-                                  ? Icons.pause
-                                  : Icons.play_arrow,
+                                  ? LucideIcons.pause
+                                  : LucideIcons.play,
                             ),
                             onPressed: () async {
                               if (_playerController.playerState ==
@@ -966,7 +967,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(Icons.auto_awesome),
+                                : const Icon(LucideIcons.sparkles),
                             label: Text(_l10n?.translate('detectWords') ?? 'Detect Words'),
                           ),
                         ],
@@ -999,7 +1000,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.warning_amber, color: Theme.of(context).colorScheme.onErrorContainer),
+                          Icon(LucideIcons.alertTriangle, color: Theme.of(context).colorScheme.onErrorContainer),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -1019,7 +1020,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                           if (_detectedSpikesCount > _wordControllers.length)
                             ElevatedButton.icon(
                               onPressed: _addMissingWords,
-                              icon: const Icon(Icons.add, size: 16),
+                              icon: const Icon(LucideIcons.plus, size: 16),
                               label: Text(_l10n?.translate('addWord') ?? 'Add Word'),
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
@@ -1031,7 +1032,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                           if (_wordControllers.length > _detectedSpikesCount)
                             ElevatedButton.icon(
                               onPressed: _removeExtraWords,
-                              icon: const Icon(Icons.remove, size: 16),
+                              icon: const Icon(LucideIcons.minus, size: 16),
                               label: Text(_l10n?.translate('removeExtra') ?? 'Remove extra'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.orange,
@@ -1134,8 +1135,8 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                             IconButton(
                               icon: Icon(
                                 isActive
-                                    ? Icons.pause_circle
-                                    : Icons.play_circle_outline,
+                                    ? LucideIcons.pauseCircle
+                                    : LucideIcons.playCircle,
                                 color: isActive ? Colors.orange : Colors.green,
                                 size: 28,
                               ),
@@ -1152,7 +1153,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                             ),
                             IconButton(
                               icon: const Icon(
-                                Icons.remove_circle_outline,
+                                LucideIcons.minusCircle,
                                 color: Colors.redAccent,
                               ),
                               onPressed: () => _removeWord(index),
@@ -1168,7 +1169,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
                 padding: const EdgeInsets.all(8.0),
                 child: ElevatedButton.icon(
                   onPressed: _addWord,
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(LucideIcons.plus),
                   label: Text(_l10n?.translate('addWord') ?? 'Add Word'),
                 ),
               ),
