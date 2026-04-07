@@ -181,6 +181,10 @@ class BleProvider with ChangeNotifier {
   Future<void> writeBatchJson(String jsonPayload) async {
     if (_lirikCharacteristic == null) return;
 
+    // PENTING: Kosongkan status sebelumnya agar pengkondisian (if (ble.lastStatus == 'OK:')) 
+    // pada layar sinkronisasi tidak langsung bernilai true dari historis sesi sebelumnya.
+    _lastStatus = "";
+
     String fullMsg = "$jsonPayload[EOF]";
     List<int> bytes = utf8.encode(fullMsg);
 

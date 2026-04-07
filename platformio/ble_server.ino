@@ -56,6 +56,8 @@ void notifyStatus(const char* status) {
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         bleConnected = true;
+        bleBuffer = ""; // Reset buffer total saat konek baru
+        newPayloadAvailable.store(false);
         Serial.println("[BLE] ========================================");
         Serial.println("[BLE] Client CONNECTED");
         Serial.println("[BLE] ========================================");
@@ -63,6 +65,8 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
     void onDisconnect(BLEServer* pServer) {
         bleConnected = false;
+        bleBuffer = ""; // Bersihkan buffer sisa
+        newPayloadAvailable.store(false);
         Serial.println("[BLE] ========================================");
         Serial.println("[BLE] Client DISCONNECTED");
         Serial.println("[BLE] ========================================");
@@ -100,14 +104,16 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 void bleWorkerTask(void *pvParameters) {
     for(;;) {
         if (newPayloadAvailable.load()) {
-            newPayloadAvailable.store(false);
+            // Berikan waktu sedikit agar sisa paket stabil
+            vTaskDelay(200 / portTICK_PERIOD_MS); 
             
             String tempPayload = payloadToProcess;
-            payloadToProcess = ""; // Clear buffer
+            payloadToProcess = ""; // Clear buffer SEGERA
+            newPayloadAvailable.store(false);
             
             parseBlePayload(tempPayload);
         }
-        vTaskDelay(20 / portTICK_PERIOD_MS); // Istirahat 20ms agar tidak memenuhi CPU
+        vTaskDelay(50 / portTICK_PERIOD_MS); 
     }
 }
 
@@ -219,7 +225,10 @@ void parseBlePayload(const String& payload) {
         else failCount++;
     }
     
-    // Kirim status feedback ke Flutter
+    // Berikan delay final agar file system menutup handle dengan sempurna
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // Kirim status feedback ke Flutter HANYA setelah semua proses TULIS selesai
     String statusMsg = "OK:" + String(successCount) + "/" + String(successCount + failCount);
     notifyStatus(statusMsg.c_str());
     
@@ -259,7 +268,12 @@ bool processDeret(JsonObject deret) {
     Serial.print(output.length());
     Serial.println(" bytes");
     
-    return saveDeretToLittleFS(slot, name, output);
+    bool result = saveDeretToLittleFS(slot, name, output);
+    
+    // Memberikan napas bagi core 0 dan LittleFS antar deret (pengereman sengaja)
+    vTaskDelay(100 / portTICK_PERIOD_MS); 
+    
+    return result;
 }
 
 void factoryReset() {
