@@ -276,18 +276,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
-              Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                 decoration: BoxDecoration(
-                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                   borderRadius: BorderRadius.circular(20),
-                 ),
-                 child: Text(
-                  _l10n?.translate('syncingTrackDetail', ['$_syncedDerets', '$_syncedWords']) ?? '$_syncedDerets deret, $_syncedWords kata',
-                  style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
-                ),
-              ),
+              // Bubble detail track dihapus sesuai permintaan
               if (ble.lastStatus.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -365,19 +354,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                         ble.connectedDevice?.platformName ?? 'ESP32 Device',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                       ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _l10n?.translate('syncSuccessful', ['${syncedDerets.length}', '$totalWords']) ?? '${syncedDerets.length} tracks ready, $totalWords words',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                      // Bubble 'Sync successful' di tampilan Connected state dihapus sesuai instruksi minimalis
                     ],
                   ),
                 ),
@@ -691,14 +668,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
 
       await Future.delayed(const Duration(milliseconds: 1000));
       
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            _l10n?.translate('syncSuccessful', ['${syncedDerets.length}', '$totalWords']) ?? 'Sync successful! ${syncedDerets.length} tracks, $totalWords words sent.',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Popup Snackbar sukses dihapus sesuai permintaan
     } catch (e) {
       scaffoldMessenger.showSnackBar(
         SnackBar(content: Text(_l10n?.translate('syncError', [e.toString()]) ?? 'Sync Error: $e'), backgroundColor: Colors.red),
