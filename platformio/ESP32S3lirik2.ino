@@ -13,19 +13,20 @@
 #include <Wire.h>
 
 // BLE and LittleFS
-#include "bitmaps_ble.h"
 #include <ArduinoJson.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <FS.h>
 #include <LittleFS.h>
+#include <esp_task_wdt.h>
 
 
 // Deklarasi fungsi UI untuk dipanggil di ble_server.ino
 void showSyncingUI(int slot, int total);
 void hideSyncingUI();
 void drawBTIcon();
+bool isSyncing = false; // Flag untuk menandai sedang sync
 
 HardwareSerial mySerial1(1);
 
@@ -313,6 +314,17 @@ void screening() {
 }
 
 void loop() {
+  // Reset watchdog untuk mencegah trigger
+  esp_task_wdt_reset();
+  
+  // KUNCI AKSES: Jika sedang sinkronisasi via Bluetooth,
+  // Core 1 dilarang memproses UI (Jam, Baterai, dll) & Tombol.
+  // Ini mengamankan jalur layar (SPI) agar tidak terjadi Tabrakan/Deadlock.
+  if (isSyncing) {
+    vTaskDelay(10 / portTICK_PERIOD_MS); // Mengalah (yield) agar system tidak marah
+    return; 
+  }
+  
   handleBLE(); // Tangani data Bluetooth yang masuk
 
   // Update Status Bluetooth di Layar secara berkala
@@ -522,6 +534,11 @@ void listderet() {
 // --- FUNGSI UI BLE (TFT) ---
 void drawBTIcon() {
   extern bool bleConnected;
+  extern bool isSyncing;
+  
+  // Skip update icon jika sedang sync agar tidak ada race condition
+  if (isSyncing) return;
+  
   int x = 60; // Spasi aman dari jam
   int y = 1;  // Koordinat Y diangkat ke atas agar lebih pas
   int w = 5;  // Lebar ikon
@@ -543,7 +560,7 @@ void drawBTIcon() {
 }
 
 void showSyncingUI(int slot, int total) {
-  // Simpan layar ke PSRAM atau cukup gambar overlay sederhana
+  isSyncing = true;
   tft.fillRect(0, 40, 128, 80, ST77XX_BLACK);
   tft.drawRect(5, 45, 118, 70, ST77XX_CYAN);
 
@@ -563,11 +580,23 @@ void showSyncingUI(int slot, int total) {
 }
 
 void hideSyncingUI() {
+  // Paksa clear area icon bluetooth sebelum fill screen
+  tft.fillRect(60, 0, 7, 10, ST77XX_BLACK);
+  
   tft.fillScreen(ST77XX_BLACK);
+  
+  // Clear area icon bluetooth lagi setelah fill screen
+  tft.fillRect(60, 0, 7, 10, ST77XX_BLACK);
+  
   tft.setFont(&FreeSans9pt7b);
-  if (posisi == 1) { /* Redraw menu */
-  } else if (posisi == 2) {
-    screening();
-  }
-  // Trigger redraw melalui home() atau fungsi menu terkait
+  
+  // Reset flag sync
+  isSyncing = false;
+  
+  // Paksa kembali ke menu utama agar tidak tersesat di blackscreen
+  posisi = 1; 
+  on = true;  // Pastikan flag tampilan aktif
+  extern void drawMainMenu();
+  drawMainMenu(); // Gambar ulang menu utama tanpa menunggu tombol
+  Serial.println("[UI] Screen recovered after sync");
 }

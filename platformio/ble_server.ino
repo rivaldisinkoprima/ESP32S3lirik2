@@ -15,6 +15,7 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
+#include <esp_task_wdt.h>
 
 // UUIDs
 #define LIRIK_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -89,8 +90,10 @@ class MyCallbacks: public BLECharacteristicCallbacks {
                 bleBuffer = bleBuffer.substring(eofPos + 5);
                 Serial.println("[BLE-RX] ---- [EOF] DETECTED ----");
                 
-                if (newPayloadAvailable.load()) {
-                   Serial.println("[BLE-RX] WARNING: Previous payload still processing, overwriting!");
+                // Tunggu jika sedang proses payload sebelumnya
+                while (newPayloadAvailable.load()) {
+                    esp_task_wdt_reset();
+                    vTaskDelay(10 / portTICK_PERIOD_MS);
                 }
                 
                 payloadToProcess = payload;
@@ -107,12 +110,20 @@ void bleWorkerTask(void *pvParameters) {
             // Berikan waktu sedikit agar sisa paket stabil
             vTaskDelay(200 / portTICK_PERIOD_MS); 
             
+            // Reset watchdog sebelum proses berat
+            esp_task_wdt_reset();
+            
             String tempPayload = payloadToProcess;
             payloadToProcess = ""; // Clear buffer SEGERA
             newPayloadAvailable.store(false);
             
+            // Reset watchdog lagi di tengah proses
+            esp_task_wdt_reset();
             parseBlePayload(tempPayload);
+            esp_task_wdt_reset();
         }
+        // Reset watchdog saat idle
+        esp_task_wdt_reset();
         vTaskDelay(50 / portTICK_PERIOD_MS); 
     }
 }
@@ -157,6 +168,9 @@ void initBLE() {
     
     Serial.println("[BLE]   Advertising started");
     
+    // Register task ke watchdog agar tidak trigger
+    esp_task_wdt_add(NULL);
+    
     // Spawn FreeRTOS Task untuk Background Processing
     // PENTING: Jalankan di Core 0, BUKAN Core 1
     // Core 1 = BLE stack + Arduino loop() → jangan dibebani LittleFS write
@@ -178,7 +192,12 @@ void handleBLE() {
     // Fungsi ini tidak dipakai lagi karena data diproses oleh bleWorkerTask
 }
 
+extern bool isSyncing;
+
 void parseBlePayload(const String& payload) {
+    // Ambil alih Layar TFT: Hentikan loop() di Core 1 agar SPI tidak tabrakan
+    isSyncing = true;
+    
     Serial.print("[BLE-PARSE] Received payload length: ");
     Serial.print(payload.length());
     Serial.println(" bytes");
@@ -192,6 +211,7 @@ void parseBlePayload(const String& payload) {
         Serial.print("[BLE-PARSE] ERROR: JSON parse failed: ");
         Serial.println(error.c_str());
         notifyStatus("ERR:JSON_PARSE");
+        isSyncing = false; // Lepas kunci layar
         return;
     }
     
@@ -202,11 +222,13 @@ void parseBlePayload(const String& payload) {
             Serial.println("[BLE-CMD] Factory Reset initiated");
             factoryReset();
             notifyStatus("OK:RESET");
+            isSyncing = false; // Lepas kunci layar
             return;
         }
         if (command == "check") {
             Serial.println("[BLE-CMD] Check Storage initiated");
             sendCheckPayload();
+            isSyncing = false; // Lepas kunci layar
             return;
         }
     }
@@ -220,11 +242,17 @@ void parseBlePayload(const String& payload) {
         int current = 0;
         for (JsonObject deret : array) {
             current++;
+            esp_task_wdt_reset(); // Beritahu satpam: "Saya masih hidup!"
+            
             showSyncingUI(deret["d"] | current, total);
             if (processDeret(deret)) successCount++;
             else failCount++;
+            
+            // Berikan napas lebih lega di sela-sela slot yang berat
+            vTaskDelay(200 / portTICK_PERIOD_MS); 
         }
     } else if (doc.is<JsonObject>()) {
+        esp_task_wdt_reset();
         showSyncingUI(doc["d"] | 1, 1);
         if (processDeret(doc.as<JsonObject>())) successCount++;
         else failCount++;
@@ -243,10 +271,11 @@ void parseBlePayload(const String& payload) {
     tft.setCursor(15, 75);
     tft.setTextColor(ST77XX_GREEN);
     tft.print("SYNC SUCCESS!");
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
     
     hideSyncingUI();
     listLirikFiles();
+    isSyncing = false; // Lepas kunci layar: Kembalikan akses ke Core 1
 }
 
 bool processDeret(JsonObject deret) {
