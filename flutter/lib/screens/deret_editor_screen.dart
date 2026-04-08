@@ -136,7 +136,7 @@ class DeretEditorScreen extends StatefulWidget {
   const DeretEditorScreen({super.key, required this.slotNumber});
 
   @override
-  _DeretEditorScreenState createState() => _DeretEditorScreenState();
+  State<DeretEditorScreen> createState() => _DeretEditorScreenState();
 }
 
 class _DeretEditorScreenState extends State<DeretEditorScreen> {

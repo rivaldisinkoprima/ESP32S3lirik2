@@ -79,7 +79,7 @@ class _CustomSplashScreenState extends State<CustomSplashScreen> with SingleTick
                 height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -105,7 +105,7 @@ class _CustomSplashScreenState extends State<CustomSplashScreen> with SingleTick
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                           blurRadius: 30,
                           spreadRadius: 10,
                         )

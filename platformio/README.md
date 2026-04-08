@@ -67,6 +67,10 @@ Flutter App                         ESP32-S3
     │                                   └── Kosong? → Render "DATA KOSONG"
 ```
 
+> **INFO PENTING - CLOUD OTA SYSTEM:**  
+> Meskipun fitur "Cloud-Based OTA (Supabase)" ditambahkan pada Flutter Mobile App, **Firmware ESP32-S3 sama sekali tidak perlu diubah ataupun terhubung ke koneksi internet/WiFi.**  
+> Aplikasi Flutter berperan sebagai *AI Processor & Proxy*, dimana ia menangani proses unduhan internet, pemrosesan audio mentah, peringkasan payload JSON final, lalu mengirimkan hasilnya ke ESP32 murni via Bluetooth Offline. Arsitektur *loose coupling* ini menjaga sekuritas & reliabilitas alat medis dari bug jaringan eksternal.
+
 ## Panduan Development (Debug)
 
 Monitor Serial Monitor pada baud rate **9600** untuk melihat log:

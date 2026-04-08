@@ -4,8 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 // Routes: '/settings'
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../providers/workspace_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/locale_provider.dart';
@@ -75,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: (isPositive ? Colors.green : Colors.red).withOpacity(0.1),
+                              color: (isPositive ? Colors.green : Colors.red).withValues(alpha: 0.1),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             )

@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _bulkImport() async {
     final l10n = AppLocalizations.of(context);
+    // Ekstrak workspace SEBELUM await pertama untuk menghindari async gap
+    final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -156,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
+
       int audioImported = 0;
       int wordsImported = 0;
       final importedDerets = <int>[];
@@ -577,7 +578,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 1,
-                        shadowColor: Colors.black.withOpacity(0.05),
+                        shadowColor: Colors.black.withValues(alpha: 0.05),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),

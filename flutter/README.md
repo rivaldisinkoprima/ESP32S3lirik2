@@ -5,6 +5,7 @@ Aplikasi Android untuk mengelola dan menyinkronkan data lirik ke perangkat ESP32
 ## Gambaran Umum
 
 Aplikasi ini berfungsi sebagai **bridge wireless** untuk:
+- Mengunduh versi resource terbaru (Audio & JSON) secara manual via Supabase Storage
 - Merekam dan meracik lirik/kata beserta timestamp berbasis waveform file MP3
 - Mengemas data menjadi JSON terenkapsulasi
 - Mentransmisikan data ke perangkat ESP32 via Bluetooth NimBLE
@@ -22,6 +23,7 @@ Aplikasi ini berfungsi sebagai **bridge wireless** untuk:
 | FR.A7 | Data Chunking | Pemecahan payload 512 bytes per chunk untuk kestabilan BLE |
 | FR.A8 | Factory Reset | Kirim perintah reset ke ESP32 |
 | FR.A9 | Premium Branding | Custom Launcher Icon & Animated Splash Screen (3 detik) |
+| FR.A10| Cloud OTA Update | Download JSON mentah & MP3 dari Supabase dengan version.txt check |
 
 ## Struktur Folder
 
@@ -197,6 +199,23 @@ flutter build apk
 4. Tekan "Sync All" untuk kirim semua data deret
 5. Atau "Factory Reset" untuk reset ESP32
 
+#### h. Setup Konfigurasi Cloud OTA (Supabase)
+Sebelum menggunakan fitur **"Cloud Update"** di aplikasi, developer wajib mensetting endpoint Supabase:
+1. Buka `lib/services/lyric_update_service.dart`
+2. Temukan variabel statik `_versionUrl` dan `_dataJsonUrl`.
+3. Ganti `YOUR_PROJECT_ID` dengan ID Supabase asli milik Anda.
+4. Buat bucket _public_ bernama `lirik-assets` dengan struktur mutlak berikut:
+   ```text
+   lirik-assets/ (Bucket Name)
+    └── update/
+         ├── version.txt               <-- Penanda rilis (contoh isi: 1.2.0)
+         └── assets/
+              ├── data.json            <-- Raw metadata lirik format Simple
+              ├── 001.mp3              <-- File audio Deret 1
+              ├── 002.mp3              <-- File audio Deret 2
+              └── ...010.mp3           <-- File audio Deret 10
+   ```
+
 ## Bluetooth UUID
 
 | UUID | Deskripsi |
@@ -245,6 +264,8 @@ dependencies:
   provider: ^6.1.5+1              # State management
   shared_preferences: ^2.5.5     # Local storage
   google_fonts: ^8.0.2            # Font (Outfit)
+  http: ^1.2.2                    # Fetch API to Supabase
+  permission_handler: ^11.3.1     # Perizinan Bluetooth & File
 ```
 
 ## Requirements

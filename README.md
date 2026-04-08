@@ -22,10 +22,16 @@ Proyek ini adalah sistem **audio screening** (pemeriksaan pendengaran) yang terd
 │  │ Manager      │  │ Detection    │  │   Sync      │                 │
 │  └──────────────┘  └──────────────┘  └──────────────┘                 │
 │         │                   │                  │                       │
-│         └───────────────────┴──────────────────┘                       │
-│                             │                                           │
-│                        Bluetooth                                        │
-│                             │                                           │
+│         ├───────────────────┴──────────────────┘                       │
+│         │                                                              │
+│  ┌──────▼───────┐        ┌───────────────────────┐                     │
+│  │ Cloud OTA    │◄───────┤ Supabase Storage (CDN)│                     │
+│  │ Sync Module  │        │ - version.txt         │                     │
+│  └──────────────┘        │ - data.json           │                     │
+│                          └───────────────────────┘                     │
+│                                                                        │
+│                        Bluetooth                                       │
+│                             │                                          │
 └─────────────────────────────┼───────────────────────────────────────────┘
                               │
                               ▼
@@ -111,6 +117,7 @@ int TrigRlyDF   = 20;    // Trigger Relay DFPlayer
 | FR.A7 | Data Chunking | Pemecahan payload 512 bytes dengan [EOF] delimiter |
 | FR.A8 | Factory Reset | Kirim perintah reset (`{"c":"reset"}`) ke ESP32 |
 | FR.A9 | Premium Branding | Custom Launcher Icon & Animated Splash Screen (3s) |
+| FR.A10| Cloud OTA System | Download/Sinkronasi otomatis resource terbaru dari Supabase |
 
 ### 2.2 Struktur Folder Flutter
 
@@ -173,6 +180,23 @@ flutter/
 5. **Edit Kata** → Sesuaikan kata & timestamp (maks 8 karakter)
 6. **Simpan** → Data tersimpan di workspace
 7. **Sinkronisasi** → Hubungi ESP32 via Bluetooth → Sync All
+
+### 2.5 Cloud-Based OTA System (Supabase)
+
+- **Platform:** Sistem ini menggunakan **Supabase Storage** sebagai CDN (gratis).
+- **Setup Endpoint:** Anda wajib mengganti URL endpoint bawaan menjadi Project URL Anda sendiri. Buka `flutter/lib/services/lyric_update_service.dart` dan ubah `YOUR_PROJECT_ID` di dalam variabel URL dengan ID proyek Supabase milik instansi Anda.
+- **Struktur Bucket Wajib:** Buatlah public bucket bernama `lirik-assets` dengan hierarki mutlak sebagai berikut:
+  ```text
+  lirik-assets/ (Nama Bucket public)
+   └── update/
+        ├── version.txt               <-- File pemicu versi
+        └── assets/
+             ├── data.json            <-- Payload data sinkronisasi mentah
+             ├── 001.mp3              <-- File audio Deret 1
+             ├── 002.mp3              <-- File audio Deret 2
+             └── ...010.mp3           <-- File audio Deret 10
+  ```
+- **Alur Pintar:** App memanggil file ringan `version.txt` (~10 byte) lebih dulu. Jika versinya baru, UI tombol Update akan terbuka. Fitur ini sengaja dibuat non-otomatis, melindungi kuota internet pengguna dan kontrol otoritas RS.
 
 ---
 
@@ -279,6 +303,7 @@ Untuk memudahkan pengembangan, firmware dilengkapi dengan **Enhanced Serial Debu
 - `file_picker: ^10.3.10` - File selection
 - `provider: ^6.1.5+1` - State management
 - `shared_preferences: ^2.5.5` - Local storage
+- `http: ^1.2.2` - Supabase OTA Fetch
 
 ### ESP32
 - [Adafruit ST7735](https://github.com/adafruit/Adafruit-ST7735-Library)

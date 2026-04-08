@@ -16,17 +16,20 @@ class BleSyncScreen extends StatefulWidget {
   const BleSyncScreen({super.key});
 
   @override
-  _BleSyncScreenState createState() => _BleSyncScreenState();
+  State<BleSyncScreen> createState() => _BleSyncScreenState();
 }
 
 class _BleSyncScreenState extends State<BleSyncScreen> {
   bool _isSyncing = false;
-  bool _syncSuccessDone = false;
-  double _syncProgress = 0.0;
-  String _syncStatus = '';
-  int _syncedDerets = 0;
-  int _syncedWords = 0;
   bool _checkDialogOpen = false;
+  bool _syncSuccessDone = false;
+  String _syncStatus = '';
+  // ignore: unused_field
+  double _syncProgress = 0.0;
+  // ignore: unused_field
+  int _syncedDerets = 0;
+  // ignore: unused_field
+  int _syncedWords = 0;
 
   AppLocalizations? get _l10n => AppLocalizations.of(context);
 
@@ -35,10 +38,8 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     super.didChangeDependencies();
     final ble = Provider.of<BleProvider>(context);
 
-    // Pemicu popup: Jika data sudah ada (bukan null) dan isChecking sudah false
     if (!ble.isChecking && ble.checkResults != null && !_checkDialogOpen) {
       final results = ble.checkResults!;
-      // Segera bersihkan results di provider agar notifikasi OK lainnya tidak memunculkan dialog lagi
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ble.clearCheckResults();
         _showCheckDialog(results);
@@ -122,7 +123,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
         final isTarget =
             name.toLowerCase().contains('lirik') ||
             name.toLowerCase().contains('s3');
-        // Define signal strength variables
         Color signalColor;
         String signalText;
         if (rssi >= -60) {
@@ -146,26 +146,25 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
               color: isTarget
-                  ? Colors.green.withOpacity(0.3)
+                  ? Colors.green.withValues(alpha: 0.3)
                   : Theme.of(
                       context,
-                    ).colorScheme.outlineVariant.withOpacity(0.5),
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.5),
               width: isTarget ? 1.5 : 1.0,
             ),
           ),
           color: isTarget
-              ? Colors.green.withOpacity(0.05)
+              ? Colors.green.withValues(alpha: 0.05)
               : Theme.of(context).colorScheme.surface,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Icon Section
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: isTarget
-                        ? Colors.green.withOpacity(0.2)
+                        ? Colors.green.withValues(alpha: 0.2)
                         : Theme.of(context).colorScheme.surfaceContainerHighest,
                     shape: BoxShape.circle,
                   ),
@@ -180,8 +179,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // Details Section
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,7 +232,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Modern Signal Indicator
                       Row(
                         children: [
                           Container(
@@ -244,7 +240,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: signalColor.withOpacity(0.15),
+                              color: signalColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
@@ -284,8 +280,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     ],
                   ),
                 ),
-
-                // Action Section
                 ElevatedButton(
                   onPressed: () => _showPinDialog(context, ble, result.device),
                   style: ElevatedButton.styleFrom(
@@ -319,7 +313,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                height: 100, // Memberikan ruang cukup untuk animasi vanish
+                height: 100,
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 800),
                   transitionBuilder: (child, animation) {
@@ -351,7 +345,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                   shadows: _syncSuccessDone
                       ? [
                           Shadow(
-                            color: Colors.green.withOpacity(0.5),
+                            color: Colors.green.withValues(alpha: 0.5),
                             blurRadius: 20,
                             offset: const Offset(0, 0),
                           ),
@@ -360,8 +354,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                 ),
                 child: Text(_syncStatus),
               ),
-              // Bubble detail track dihapus sesuai permintaan
-              // Device Response (OK:n/n) disembunyikan dari UI agar lebih bersih
             ],
           ),
         ),
@@ -369,10 +361,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     }
 
     final syncedDerets = workspace.derets.where((d) => d.isSynced).toList();
-    final totalWords = syncedDerets.fold<int>(
-      0,
-      (sum, d) => sum + d.words.length,
-    );
 
     return SingleChildScrollView(
       child: Center(
@@ -382,12 +370,11 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Device Header Card
               Card(
                 elevation: 0,
                 color: Theme.of(
                   context,
-                ).colorScheme.secondaryContainer.withOpacity(0.4),
+                ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
@@ -402,7 +389,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 10,
                               spreadRadius: 2,
                             ),
@@ -429,20 +416,14 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                           fontSize: 20,
                         ),
                       ),
-                      // Bubble 'Sync successful' di tampilan Connected state dihapus sesuai instruksi minimalis
                     ],
                   ),
                 ),
               ),
-
-              // Device Response Card dibuang sesuai instruksi UX minimalis
               const SizedBox(height: 40),
-
-              // Action Buttons
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Primary Action
                   ElevatedButton(
                     onPressed: syncedDerets.isEmpty
                         ? null
@@ -454,7 +435,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                       elevation: 4,
                       shadowColor: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.4),
+                      ).colorScheme.primary.withValues(alpha: 0.4),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -476,8 +457,6 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Secondary Actions Row
                   Row(
                     children: [
                       Expanded(
@@ -799,8 +778,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
           _syncedDerets = 0;
           _syncedWords = 0;
         });
-
-        Navigator.of(context).pop();
+        // Navigator.of(context).pop(); <--- INI BIANG KEROK BLACKSCREEN YANG DIHAPUS
       }
     }
   }
@@ -919,7 +897,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: results.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (context, index) => const Divider(height: 1),
                   itemBuilder: (ctx, i) {
                     final deret = results[i];
                     return ExpansionTile(

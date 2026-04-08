@@ -16,6 +16,7 @@ import 'providers/workspace_provider.dart';
 import 'providers/ble_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/locale_provider.dart';
+import 'providers/lyric_update_provider.dart';
 import 'screens/main_shell.dart';
 import 'screens/splash_screen.dart';
 import 'l10n/app_localizations.dart';
@@ -28,6 +29,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => BleProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => LyricUpdateProvider()),
       ],
       child: const LirikSyncApp(),
     ),
@@ -45,7 +47,7 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
   bool _initialized = false;
   bool _splashDone = false;
   String _initStatus = 'checkBluetooth';
-  List<String> _permissionStatus = [];
+  final List<String> _permissionStatus = [];
 
   @override
   void initState() {
@@ -58,6 +60,8 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
       setState(() => _initStatus = 'checkBluetooth');
       final btAdapterState = await FlutterBluePlus.adapterState.first;
       final btOn = btAdapterState == BluetoothAdapterState.on;
+      
+      if (!mounted) return;
       _permissionStatus.add('Bluetooth: ${btOn ? "ON" : "OFF"}');
 
       // Tidak perlu check akses penyimpanan otomatis
@@ -100,8 +104,12 @@ class _LirikSyncAppState extends State<LirikSyncApp> {
             onPressed: () async {
               try {
                 await FlutterBluePlus.turnOn();
-              } catch (e) {}
-              Navigator.of(ctx).pop();
+              } catch (e) {
+                debugPrint('Failed to turn on Bluetooth: $e');
+              }
+              if (ctx.mounted) {
+                Navigator.of(ctx).pop();
+              }
             },
             child: Text(AppLocalizations.of(ctx)?.translate('turnOn') ?? 'Turn On'),
           ),
