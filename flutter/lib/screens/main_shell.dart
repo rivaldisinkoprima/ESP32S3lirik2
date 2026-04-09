@@ -22,7 +22,7 @@ class _MainShellState extends State<MainShell> {
   List<Widget> _buildScreens(Locale locale) => [
     HomeScreen(key: ValueKey('home_${locale.languageCode}')),
     BleSyncScreen(key: ValueKey('sync_${locale.languageCode}')),
-    // CloudUpdateScreen mengelola providernya sendiri secara internal
+    // CloudUpdateScreen menggunakan LyricUpdateProvider global + BleProvider
     const CloudUpdateScreen(key: ValueKey('cloud_update')),
     SettingsScreen(key: ValueKey('settings_${locale.languageCode}')),
   ];

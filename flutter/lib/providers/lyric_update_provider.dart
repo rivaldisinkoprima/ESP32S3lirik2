@@ -32,16 +32,16 @@ class LyricUpdateProvider extends ChangeNotifier {
 
   UpdateScreenState _state = UpdateScreenState.idle;
   String? _serverVersion;
-  String? _localVersion;
+  String? _hardwareVersion; // Dibaca dari BleProvider (ESP32 NVS), BUKAN SharedPreferences
   String? _downloadedDataJson;
   String? _errorMessage;
   /// Map nomor deret ke path file audio lokal (misal: {1: '/data/user/.../001.mp3'})
   final Map<int, String> _downloadedAudioPaths = {};
 
-  // ─── Getters ──────────────────────────────────────────────────────────────
+  // ─── Getters ────────────────────────────────────────────────────────────────────
   UpdateScreenState get state => _state;
   String? get serverVersion => _serverVersion;
-  String? get localVersion => _localVersion;
+  String? get hardwareVersion => _hardwareVersion;
   String? get downloadedDataJson => _downloadedDataJson;
   String? get errorMessage => _errorMessage;
   Map<int, String> get downloadedAudioPaths => Map.unmodifiable(_downloadedAudioPaths);
@@ -56,39 +56,42 @@ class LyricUpdateProvider extends ChangeNotifier {
 
   /// True jika data sudah siap dikirim ke ESP32 via BLE
   bool get isReadyToSync => _state == UpdateScreenState.readyToSync;
-  // ──────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────────
 
-  LyricUpdateProvider() {
-    _loadLocalVersion();
-  }
-
-  Future<void> _loadLocalVersion() async {
-    _localVersion = await _service.getLocalVersion();
+  /// Dipanggil oleh UI saat BleProvider melaporkan hardwareVersion berubah.
+  /// Ini adalah satu-satunya jalur resmi untuk mengubah versi yang ditampilkan di layar.
+  void setHardwareVersion(String? version) {
+    _hardwareVersion = version;
     notifyListeners();
   }
 
   // ─── Public Actions ───────────────────────────────────────────────────────
 
   /// Dipanggil saat user menekan tombol "Periksa Pembaruan".
-  /// Mendownload version.txt dan membandingkannya dengan versi lokal.
+  /// Mendownload version.txt dan membandingkannya dengan versi hardware (NVS ESP32).
   Future<void> checkForUpdate() async {
     _setState(UpdateScreenState.checking);
     _errorMessage = null;
 
-    final result = await _service.checkForUpdate();
-
-    switch (result.status) {
-      case UpdateStatus.upToDate:
-        _setState(UpdateScreenState.upToDate);
-        break;
-      case UpdateStatus.updateAvailable:
-        _serverVersion = result.serverVersion;
-        _setState(UpdateScreenState.updateAvailable);
-        break;
-      case UpdateStatus.checkFailed:
+    try {
+      final serverResult = await _service.fetchServerVersion();
+      if (serverResult == null) {
         _errorMessage = 'Gagal memeriksa pembaruan. Periksa koneksi internet Anda.';
         _setState(UpdateScreenState.checkFailed);
-        break;
+        return;
+      }
+
+      _serverVersion = serverResult;
+
+      // Bandingkan dengan versi hardware ESP32 (bukan SharedPreferences)
+      if (_serverVersion == _hardwareVersion) {
+        _setState(UpdateScreenState.upToDate);
+      } else {
+        _setState(UpdateScreenState.updateAvailable);
+      }
+    } catch (e) {
+      _errorMessage = 'Gagal memeriksa pembaruan. Periksa koneksi internet Anda.';
+      _setState(UpdateScreenState.checkFailed);
     }
   }
 
@@ -135,15 +138,14 @@ class LyricUpdateProvider extends ChangeNotifier {
     _setState(UpdateScreenState.readyToSync);
   }
 
-  /// Dipanggil setelah ESP32 membalas konfirmasi "OK" dari BLE Sync.
-  /// Menyimpan versi baru secara permanen ke penyimpanan lokal HP.
-  Future<void> commitUpdateSuccess() async {
-    if (_serverVersion == null) return;
-    await _service.commitVersion(_serverVersion!);
-    _localVersion = _serverVersion;
-    _serverVersion = null;
+  /// Dipanggil setelah data berhasil diimpor ke Workspace.
+  /// Hanya me-reset state internal provider (mereset UI).
+  /// Versi TIDAK disimpan di sini — versi akan disimpan ke NVS ESP32
+  /// saat proses Sync BLE berhasil (di BleSyncScreen).
+  void commitUpdateSuccess() {
     _downloadedDataJson = null;
-    _setState(UpdateScreenState.upToDate);
+    _downloadedAudioPaths.clear();
+    _setState(UpdateScreenState.idle);
   }
 
   /// Reset state ke idle (misal: user cancel di tengah jalan)

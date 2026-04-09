@@ -172,7 +172,67 @@ class AppLocalizations {
       'failedReadJson': 'Failed to read JSON file: %1',
       'formatNotSupported': 'Format .%1 not supported. Use: %2',
       'audioFileNotFound': 'Audio file not found',
-      'fileTooLarge': 'File too large (max 100MB)'
+      'fileTooLarge': 'File too large (max 100MB)',
+
+      // ─── Cloud Update Screen ───────────────────────────────────────────
+      'updateScreenTitle': 'System Update',
+      'updateDeviceConnected': 'Audio Screening Connected',
+      'updateEditionLabel': 'Version:',
+      'updateNewEditionBadge': 'New Version',
+      'updateCheckButton': 'Check for Updates',
+      'updateDownloadButton': 'Download Safely',
+      'updateOpenSyncMenu': 'Open Sync Menu',
+      'updateOpenSyncHint': 'Open the "Sync" tab in the bottom menu.',
+
+      // Status: Idle
+      'updateStatusIdleTitle': 'System Ready',
+      'updateStatusIdleDesc': 'Tap the button below to check for available data updates for your Audio Screening.',
+
+      // Status: Checking
+      'updateStatusCheckingTitle': 'Checking...',
+      'updateStatusCheckingDesc': 'Searching for the latest medical instruction data on the central server.',
+      'updateLoadingChecking': 'Contacting central server...',
+
+      // Status: Up To Date
+      'updateStatusUpToDateTitle': 'System Up to Date',
+      'updateStatusUpToDateDesc': 'Your Audio Screening is already using the latest official data.',
+
+      // Status: Update Available
+      'updateStatusAvailableTitle': 'Lyric Update Available',
+      'updateStatusAvailableDesc': 'A new lyric instruction update from the center is available to improve the quality of your Audio Screening.',
+
+      // Status: Check Failed
+      'updateStatusCheckFailedTitle': 'Check Failed',
+      'updateStatusCheckFailedDesc': 'Unable to connect to the central network. Please check your WiFi/Mobile internet connection.',
+
+      // Status: Downloading
+      'updateStatusDownloadingTitle': 'Downloading...',
+      'updateStatusDownloadingDesc': 'Please wait, compiling the medical update data package.',
+      'updateLoadingDownloading': 'Downloading data package...',
+
+      // Status: Ready to Sync
+      'updateStatusReadyTitle': 'Download Complete',
+      'updateStatusReadyDesc': 'The latest data update is ready to be installed for your Audio Screening.',
+
+      // Status: Download Failed
+      'updateStatusDownloadFailedTitle': 'Download Failed',
+      'updateStatusDownloadFailedDesc': 'An error occurred while downloading the medical data. Please try again.',
+
+      // Import Card
+      'updateImportCardTitle': 'Download Complete',
+      'updateImportCardDesc': 'The latest lyric texts are ready to be installed into the application before being sent to the device.',
+      'updateImportButton': 'Install into System',
+      'updateImportSuccess': 'Data ready! Please open the Sync menu to transfer lyrics to the Audio Screening.',
+
+      // Info Footer
+      'updateInfoMedicalStdTitle': 'Medical Standard',
+      'updateInfoMedicalStdDesc': 'This lyric instruction update is official and has been tested for accuracy.',
+      'updateInfoEfficientTitle': 'Efficient',
+      'updateInfoEfficientDesc': 'The system will only download data if there is actually a new release available.',
+
+      // Hard-Gate Overlay
+      'updateGateTitle': 'Device Not Connected',
+      'updateGateDesc': 'Please connect your phone to the Audio Screening device first via the Sync menu to check for the latest updates.',
     },
     'id': {
       'appName': 'Lirik Sync',
@@ -323,7 +383,67 @@ class AppLocalizations {
       'failedReadJson': 'Gagal membaca file JSON: %1',
       'formatNotSupported': 'Format .%1 tidak didukung. Gunakan: %2',
       'audioFileNotFound': 'File audio tidak ditemukan',
-      'fileTooLarge': 'File terlalu besar (maks 100MB)'
+      'fileTooLarge': 'File terlalu besar (maks 100MB)',
+
+      // ─── Cloud Update Screen ───────────────────────────────────────────
+      'updateScreenTitle': 'Pembaruan Sistem',
+      'updateDeviceConnected': 'Audio Screening Terhubung',
+      'updateEditionLabel': 'Versi:',
+      'updateNewEditionBadge': 'Versi Baru',
+      'updateCheckButton': 'Cek Pembaruan',
+      'updateDownloadButton': 'Unduh Secara Aman',
+      'updateOpenSyncMenu': 'Buka Menu Sync',
+      'updateOpenSyncHint': 'Buka tab "Sync" di menu bawah.',
+
+      // Status: Idle
+      'updateStatusIdleTitle': 'Sistem Siap',
+      'updateStatusIdleDesc': 'Tekan tombol di bawah untuk memeriksa ketersediaan data pembaruan untuk Audio Screening.',
+
+      // Status: Checking
+      'updateStatusCheckingTitle': 'Memeriksa...',
+      'updateStatusCheckingDesc': 'Sedang mencari data instruksi medis terbaru di server pusat.',
+      'updateLoadingChecking': 'Menghubungi pusat...',
+
+      // Status: Up To Date
+      'updateStatusUpToDateTitle': 'Sistem Terupdate',
+      'updateStatusUpToDateDesc': 'Audio Screening Anda sudah menggunakan data versi terbaru yang resmi.',
+
+      // Status: Update Available
+      'updateStatusAvailableTitle': 'Tersedia Pembaruan Lirik',
+      'updateStatusAvailableDesc': 'Ada pembaruan kalimat instruksi lirik baru dari pusat untuk meningkatkan kualitas dari mesin Audio Screening.',
+
+      // Status: Check Failed
+      'updateStatusCheckFailedTitle': 'Pengecekan Gagal',
+      'updateStatusCheckFailedDesc': 'Tidak dapat terhubung ke jaringan pusat. Periksa koneksi internet WiFi/Seluler Anda.',
+
+      // Status: Downloading
+      'updateStatusDownloadingTitle': 'Mengunduh...',
+      'updateStatusDownloadingDesc': 'Mohon tunggu, sedang melakukan kompilasi paket data pembaruan medis.',
+      'updateLoadingDownloading': 'Mengunduh paket data...',
+
+      // Status: Ready to Sync
+      'updateStatusReadyTitle': 'Unduhan Selesai',
+      'updateStatusReadyDesc': 'Pembaruan data terbaru sudah siap dipasang untuk digunakan oleh Audio Screening Anda.',
+
+      // Status: Download Failed
+      'updateStatusDownloadFailedTitle': 'Gagal Unduh',
+      'updateStatusDownloadFailedDesc': 'Terjadi gangguan saat mengunduh data medis. Silakan coba kembali.',
+
+      // Import Card
+      'updateImportCardTitle': 'Unduhan Selesai',
+      'updateImportCardDesc': 'Teks lirik terbaru sudah siap dipasang ke dalam aplikasi Anda sebelum dikirim ke mesin.',
+      'updateImportButton': 'Pasang ke Dalam Sistem',
+      'updateImportSuccess': 'Data berhasil disiapkan! Silakan buka menu Sync untuk mentransfer lirik ke Audio Screening.',
+
+      // Info Footer
+      'updateInfoMedicalStdTitle': 'Standar Medis',
+      'updateInfoMedicalStdDesc': 'Pembaruan kalimat lirik ini resmi dan telah diuji akurasinya.',
+      'updateInfoEfficientTitle': 'Efisien',
+      'updateInfoEfficientDesc': 'Sistem hanya akan mengunduh data jika benar-benar ada versi rilis terbaru.',
+
+      // Hard-Gate Overlay
+      'updateGateTitle': 'Alat Belum Terhubung',
+      'updateGateDesc': 'Silakan hubungkan HP Anda ke mesin Audio Screening terlebih dahulu melalui menu Sync untuk mengecek pembaruan versi terbaru.',
     },
   };
 

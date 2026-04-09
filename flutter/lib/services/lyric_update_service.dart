@@ -27,11 +27,11 @@ class UpdateCheckResult {
 class LyricUpdateService {
   // ─── Konfigurasi URL Supabase Storage ───────────────────────────────────────
   static const String _baseUrl =
-      'https://zxmegcnonofevfazfgjj.supabase.co/storage/v1/object/public/lirik-assets/update/assets';
+      'https://mrlyotncelnvnyhkhzhz.supabase.co/storage/v1/object/public/update/update/assets';
 
   /// URL publik file version.txt di Supabase Storage
   static const String _versionUrl =
-      'https://zxmegcnonofevfazfgjj.supabase.co/storage/v1/object/public/lirik-assets/update/version.txt';
+      'https://mrlyotncelnvnyhkhzhz.supabase.co/storage/v1/object/public/update/update/version.txt';
 
   /// URL publik file data.json (lirik mentah) di Supabase Storage
   static const String _dataJsonUrl = '$_baseUrl/data.json';
@@ -74,6 +74,23 @@ class LyricUpdateService {
     } catch (e) {
       // Offline atau timeout — tidak crash aplikasi
       return const UpdateCheckResult(status: UpdateStatus.checkFailed);
+    }
+  }
+
+  /// Mengambil versi dari server tanpa membandingkan dengan lokal.
+  /// Return string versi server, atau null jika gagal.
+  Future<String?> fetchServerVersion() async {
+    try {
+      final response = await http
+          .get(Uri.parse(_versionUrl))
+          .timeout(_requestTimeout);
+
+      if (response.statusCode == 200) {
+        return response.body.trim();
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 

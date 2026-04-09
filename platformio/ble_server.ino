@@ -16,6 +16,12 @@
 #include <BLEServer.h>
 #include <BLE2902.h>
 #include <esp_task_wdt.h>
+#include <Preferences.h>
+
+// ─── NVS Preferences: Menyimpan versi lirik secara permanen ─────────────────
+// Terpisah dari LittleFS → aman dari Factory Reset (LittleFS.format())
+Preferences versionPrefs;
+String deviceLirikVersion = "0";
 
 // UUIDs
 #define LIRIK_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -133,6 +139,13 @@ void initBLE() {
     Serial.println("[BLE] ========================================");
     Serial.println("[BLE] Initializing ESP32 BLE Server...");
     
+    // ─── Inisialisasi NVS Preferences untuk versioning ──────────────────
+    versionPrefs.begin("lirik_app", false); // false = read-write
+    deviceLirikVersion = versionPrefs.getString("version", "0");
+    Serial.print("[BLE]   Lirik Version (NVS): ");
+    Serial.println(deviceLirikVersion);
+    // ────────────────────────────────────────────────────────────────────
+    
     BLEDevice::init("Lirik S3");
     Serial.println("[BLE]   Device name: Lirik S3");
     
@@ -195,6 +208,25 @@ void handleBLE() {
 extern bool isSyncing;
 
 void parseBlePayload(const String& payload) {
+    // ─── Perintah Khusus Versioning (Non-JSON) ──────────────────────────
+    // Diproses SEBELUM JSON parser agar tidak mengganggu alur data lirik.
+    if (payload.startsWith("@GET_VERSION")) {
+        Serial.println("[BLE-CMD] GET_VERSION request received");
+        notifyStatus(deviceLirikVersion.c_str());
+        return; // Selesai, tidak perlu proses lebih lanjut
+    }
+    if (payload.startsWith("@SET_VERSION:")) {
+        String newVer = payload.substring(13); // potong prefix "@SET_VERSION:"
+        newVer.trim();
+        versionPrefs.putString("version", newVer);
+        deviceLirikVersion = newVer;
+        Serial.print("[BLE-CMD] SET_VERSION: ");
+        Serial.println(newVer);
+        notifyStatus("ACK_VER");
+        return; // Selesai
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     // Ambil alih Layar TFT: Hentikan loop() di Core 1 agar SPI tidak tabrakan
     isSyncing = true;
     

@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import '../providers/ble_provider.dart';
 import '../providers/workspace_provider.dart';
+import '../providers/lyric_update_provider.dart';
 import '../l10n/app_localizations.dart';
 
 class BleSyncScreen extends StatefulWidget {
@@ -679,6 +680,7 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
 
   Future<void> _startSync(BleProvider ble, WorkspaceProvider workspace) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final updateProvider = context.read<LyricUpdateProvider>();
     final syncedDerets = workspace.derets.where((d) => d.isSynced).toList();
     final totalWords = syncedDerets.fold<int>(
       0,
@@ -757,6 +759,26 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
       await Future.delayed(
         const Duration(milliseconds: 2000),
       ); // Biarkan user menikmati animasi membal sebentar
+
+      // ─── HARD-GATE: Kirim versi ke NVS ESP32 ──────────────────────────
+      // Hanya dilakukan jika ada serverVersion yang baru saja diunduh
+      final pendingVersion = updateProvider.serverVersion;
+      if (pendingVersion != null && pendingVersion.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _syncStatus = 'Menyimpan versi ke alat...';
+          });
+        }
+        final versionSaved = await ble.sendSetVersion(pendingVersion);
+        if (versionSaved) {
+          debugPrint('[SYNC] Versi $pendingVersion berhasil disimpan ke NVS ESP32');
+          // Update provider agar UI Cloud Update menampilkan versi baru
+          updateProvider.setHardwareVersion(pendingVersion);
+        } else {
+          debugPrint('[SYNC] WARNING: Gagal menyimpan versi ke NVS ESP32');
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
 
       // Popup Snackbar sukses dihapus sesuai permintaan
     } catch (e) {

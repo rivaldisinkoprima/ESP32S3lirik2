@@ -3,24 +3,22 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../providers/lyric_update_provider.dart';
 import '../providers/workspace_provider.dart';
+import '../providers/ble_provider.dart';
+import '../l10n/app_localizations.dart';
 
 /// Screen yang menampilkan UI untuk fitur Cloud Update Lirik.
 ///
-/// Alur User:
-/// 1. Tekan "Periksa Pembaruan" → App download version.txt (beberapa byte)
-/// 2. Jika ada update: tombol "Unduh & Proses" menyala
-/// 3. Tekan "Unduh & Proses" → App download data.json & audio
-/// 4. Setelah download: tombol "Kirim ke Alat" muncul
-/// 5. Setelah BLE sync sukses: versi lokal di-commit, tombol kembali disable
+/// Versi 2.0: Desain Premium ala OS Update (Android/iOS)
+/// - Teks sepenuhnya dilokalisasi (EN/ID) via AppLocalizations
+/// - Menghilangkan terminologi teknis "Versi Server/Alat", "ESP32", "Workspace"
+/// - Fokus pada status kemajuan perangkat medis (Audio Screening)
+/// - Arsitektur Hard-Gate tetap aktif sebagai pengaman
 class CloudUpdateScreen extends StatelessWidget {
   const CloudUpdateScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => LyricUpdateProvider(),
-      child: const _CloudUpdateView(),
-    );
+    return const _CloudUpdateView();
   }
 }
 
@@ -30,108 +28,131 @@ class _CloudUpdateView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<LyricUpdateProvider>();
+    final ble = context.watch<BleProvider>();
+    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isConnected = ble.isConnected;
+
+    // Sinkronkan hardware version dari BleProvider ke LyricUpdateProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (provider.hardwareVersion != ble.hardwareVersion) {
+        provider.setHardwareVersion(ble.hardwareVersion);
+      }
+    });
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Pembaruan Lirik'),
-        centerTitle: false,
+        title: Text(l10n.translate('updateScreenTitle')),
+        centerTitle: true,
+        actions: [
+          if (isConnected)
+            IconButton(
+              icon: const Icon(LucideIcons.refreshCw, size: 20),
+              onPressed: provider.canCheck
+                  ? () => provider.checkForUpdate()
+                  : null,
+            ),
+        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Stack(
         children: [
-          // ─── Status Card ──────────────────────────────────────────────────────
-          _buildStatusCard(context, provider, colorScheme),
-          const SizedBox(height: 24),
+          // ─── BACKGROUND DECORATION ────────────────────────────────────
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.primary.withValues(alpha: 0.03),
+              ),
+            ),
+          ),
 
-          // ─── Version Info Row ─────────────────────────────────────────────────
-          _buildVersionInfoRow(context, provider, colorScheme),
-          const SizedBox(height: 32),
+          // ─── MAIN CONTENT ─────────────────────────────────────────────
+          Column(
+            children: [
+              // Device Info Header
+              if (isConnected) _buildDeviceHeader(ble, colorScheme, l10n),
 
-          // ─── Action Buttons ───────────────────────────────────────────────────
-          _buildCheckButton(context, provider, colorScheme),
-          const SizedBox(height: 16),
-          _buildDownloadButton(context, provider, colorScheme),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 20),
+                      // MAIN ICON AREA
+                      _buildMainIllustration(provider, colorScheme),
 
-          // ─── Ready to Sync Banner ─────────────────────────────────────────────
-          if (provider.isReadyToSync) ...[
-            const SizedBox(height: 16),
-            _buildReadyToSyncBanner(context, provider, colorScheme),
-          ],
+                      const SizedBox(height: 48),
 
-          // ─── Error Message ────────────────────────────────────────────────────
-          if (provider.errorMessage != null) ...[
-            const SizedBox(height: 16),
-            _buildErrorBanner(context, provider, colorScheme),
-          ],
+                      // STATUS INFO
+                      _buildStatusInfo(provider, colorScheme, l10n),
 
-          const SizedBox(height: 32),
+                      const SizedBox(height: 48),
 
-          // ─── Info Section ─────────────────────────────────────────────────────
-          _buildInfoSection(context, colorScheme),
+                      // ACTION AREA
+                      _buildActionArea(
+                          context, provider, colorScheme, isConnected, l10n),
+
+                      const SizedBox(height: 40),
+
+                      // INFO FOOTER
+                      _buildInfoFooter(colorScheme, l10n),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // ─── HARD-GATE OVERLAY (BLE Guard) ──────────────────────────
+          if (!isConnected) _buildHardGateOverlay(context, colorScheme, l10n),
         ],
       ),
     );
   }
 
-  // ─── Widget Builders ──────────────────────────────────────────────────────
+  // ─── Helper Builders ──────────────────────────────────────────────────────
 
-  Widget _buildStatusCard(
-    BuildContext context,
-    LyricUpdateProvider provider,
-    ColorScheme colorScheme,
-  ) {
-    final (icon, color, title, subtitle) = _resolveStatusDisplay(provider);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
-      ),
+  Widget _buildDeviceHeader(
+      BleProvider ble, ColorScheme colorScheme, AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: provider.state == UpdateScreenState.checking ||
-                    provider.state == UpdateScreenState.downloading
-                ? SizedBox(
-                    key: const ValueKey('loading'),
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      color: color,
-                    ),
-                  )
-                : Icon(icon, key: ValueKey(icon), color: color, size: 32),
+          const Icon(LucideIcons.cpu, size: 14, color: Colors.green),
+          const SizedBox(width: 8),
+          Text(
+            l10n.translate('updateDeviceConnected'),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+          const SizedBox(width: 12),
+          Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colorScheme.outlineVariant)),
+          const SizedBox(width: 12),
+          Text(
+            '${l10n.translate('updateEditionLabel')} ${ble.hardwareVersion ?? "..."}',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -139,225 +160,204 @@ class _CloudUpdateView extends StatelessWidget {
     );
   }
 
-  Widget _buildVersionInfoRow(
-    BuildContext context,
-    LyricUpdateProvider provider,
-    ColorScheme colorScheme,
-  ) {
-    return Row(
+  Widget _buildMainIllustration(
+      LyricUpdateProvider provider, ColorScheme colorScheme) {
+    final (icon, color, glowColor) = _resolveIllustration(provider);
+
+    return Stack(
+      alignment: Alignment.center,
       children: [
-        Expanded(
-          child: _buildVersionChip(
-            context: context,
-            label: 'Versi Alat',
-            version: provider.localVersion ?? '0',
-            icon: LucideIcons.cpu,
-            colorScheme: colorScheme,
+        // Glow Effect
+        Container(
+          width: 140,
+          height: 140,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: glowColor.withValues(alpha: 0.2),
+                blurRadius: 40,
+                spreadRadius: 10,
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 12),
-        Icon(LucideIcons.arrowRight, color: colorScheme.onSurfaceVariant, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildVersionChip(
-            context: context,
-            label: 'Versi Server',
-            version: provider.serverVersion ?? '—',
-            icon: LucideIcons.cloud,
-            colorScheme: colorScheme,
-            highlight: provider.state == UpdateScreenState.updateAvailable,
+        // Icon Container
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.2), width: 2),
+          ),
+          child: Center(
+            child: Icon(icon, size: 48, color: color),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildVersionChip({
-    required BuildContext context,
-    required String label,
-    required String version,
-    required IconData icon,
-    required ColorScheme colorScheme,
-    bool highlight = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: highlight
-            ? colorScheme.primaryContainer
-            : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: colorScheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+  Widget _buildStatusInfo(LyricUpdateProvider provider, ColorScheme colorScheme,
+      AppLocalizations l10n) {
+    final (titleKey, subtitleKey, showVersion) = _resolveTextKeys(provider);
+
+    return Column(
+      children: [
+        Text(
+          l10n.translate(titleKey),
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.5,
           ),
-          const SizedBox(height: 4),
-          Text(
-            version,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: highlight
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        if (showVersion && provider.serverVersion != null)
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${l10n.translate('updateNewEditionBadge')} ${provider.serverVersion}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
             ),
           ),
-        ],
-      ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            l10n.translate(subtitleKey),
+            style: TextStyle(
+              fontSize: 15,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildCheckButton(
-    BuildContext context,
-    LyricUpdateProvider provider,
-    ColorScheme colorScheme,
-  ) {
-    final isLoading = provider.state == UpdateScreenState.checking;
+  Widget _buildActionArea(
+      BuildContext context,
+      LyricUpdateProvider provider,
+      ColorScheme colorScheme,
+      bool isConnected,
+      AppLocalizations l10n) {
+    if (provider.state == UpdateScreenState.checking ||
+        provider.state == UpdateScreenState.downloading) {
+      return Column(
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 20),
+          Text(
+            provider.state == UpdateScreenState.checking
+                ? l10n.translate('updateLoadingChecking')
+                : l10n.translate('updateLoadingDownloading'),
+            style: TextStyle(
+                fontSize: 14,
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w500),
+          ),
+        ],
+      );
+    }
 
+    if (provider.state == UpdateScreenState.readyToSync) {
+      return _buildImportCard(context, provider, colorScheme, l10n);
+    }
+
+    if (provider.state == UpdateScreenState.updateAvailable) {
+      return SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: FilledButton.icon(
+          onPressed: () => provider.downloadAssets(),
+          icon: const Icon(LucideIcons.download),
+          label: Text(l10n.translate('updateDownloadButton'),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          style: FilledButton.styleFrom(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+      );
+    }
+
+    // Default: Check Button
     return SizedBox(
-      width: double.infinity,
+      width: 220,
       height: 52,
       child: OutlinedButton.icon(
-        onPressed: provider.canCheck
-            ? () => context.read<LyricUpdateProvider>().checkForUpdate()
-            : null,
-        icon: isLoading
-            ? SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: colorScheme.primary,
-                ),
-              )
-            : const Icon(LucideIcons.refreshCw),
-        label: Text(
-          isLoading ? 'Memeriksa...' : 'Periksa Pembaruan',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+        onPressed: () => provider.checkForUpdate(),
+        icon: const Icon(LucideIcons.search),
+        label: Text(l10n.translate('updateCheckButton')),
+        style: OutlinedButton.styleFrom(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          side: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
     );
   }
 
-  Widget _buildDownloadButton(
-    BuildContext context,
-    LyricUpdateProvider provider,
-    ColorScheme colorScheme,
-  ) {
-    final isDownloading = provider.state == UpdateScreenState.downloading;
-
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
-      opacity: provider.canDownload || isDownloading ? 1.0 : 0.4,
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: FilledButton.icon(
-          // Tombol HANYA aktif jika ada update tersedia
-          onPressed: provider.canDownload
-              ? () => context.read<LyricUpdateProvider>().downloadAssets()
-              : null,
-          icon: isDownloading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Icon(LucideIcons.download),
-          label: Text(
-            isDownloading ? 'Mengunduh...' : 'Unduh & Proses',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReadyToSyncBanner(
-    BuildContext context,
-    LyricUpdateProvider provider,
-    ColorScheme colorScheme,
-  ) {
+  Widget _buildImportCard(BuildContext context, LyricUpdateProvider provider,
+      ColorScheme colorScheme, AppLocalizations l10n) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+        color: Colors.green.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(LucideIcons.checkCircle, color: Colors.green, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Data Siap Dikirim ke Alat',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-            ],
-          ),
+          Text(l10n.translate('updateImportCardTitle'),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, color: Colors.green)),
           const SizedBox(height: 8),
           Text(
-            'Kata-kata lirik versi ${provider.serverVersion} telah diunduh. '
-            'Tekan tombol di bawah untuk mengimpor ke Workspace. '
-            'Setelah itu, pilih file audio per deret dan jalankan Auto-Detect.',
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            l10n.translate('updateImportCardDesc'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
+            height: 48,
+            child: FilledButton(
               onPressed: () {
-                // Memasukkan kata-kata ke Workspace
                 if (provider.downloadedDataJson != null) {
-                  final workspace = context.read<WorkspaceProvider>();
-                  workspace.importFromCloudJson(
-                    provider.downloadedDataJson!,
-                    audioPaths: provider.downloadedAudioPaths.isNotEmpty
-                        ? provider.downloadedAudioPaths
-                        : null,
-                  );
-                  
-                  // CARA A: Kunci (simpan) versi lokal HARI INI JUGA!
+                  context.read<WorkspaceProvider>().importFromCloudJson(
+                        provider.downloadedDataJson!,
+                        audioPaths: provider.downloadedAudioPaths,
+                      );
                   provider.commitUpdateSuccess();
-
-                  // Tampilkan notifikasi sukses
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Data berhasil diimpor ke Workspace! Buka tab Home untuk melihat.'),
+                    SnackBar(
+                      content: Text(l10n.translate('updateImportSuccess')),
                       backgroundColor: Colors.green,
-                      duration: Duration(seconds: 4),
                     ),
                   );
                 }
               },
-              style: FilledButton.styleFrom(backgroundColor: Colors.green),
-              icon: const Icon(LucideIcons.folderInput),
-              label: const Text(
-                'Impor ke Workspace',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              style: FilledButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12))),
+              child: Text(l10n.translate('updateImportButton'),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -365,168 +365,160 @@ class _CloudUpdateView extends StatelessWidget {
     );
   }
 
-  Widget _buildErrorBanner(
-    BuildContext context,
-    LyricUpdateProvider provider,
-    ColorScheme colorScheme,
-  ) {
+  Widget _buildInfoFooter(ColorScheme colorScheme, AppLocalizations l10n) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Icon(LucideIcons.alertCircle,
-              color: colorScheme.onErrorContainer, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              provider.errorMessage ?? '',
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onErrorContainer,
-              ),
-            ),
+          _buildInfoRow(
+            LucideIcons.shieldCheck,
+            l10n.translate('updateInfoMedicalStdTitle'),
+            l10n.translate('updateInfoMedicalStdDesc'),
+          ),
+          const Divider(height: 24),
+          _buildInfoRow(
+            LucideIcons.wifiOff,
+            l10n.translate('updateInfoEfficientTitle'),
+            l10n.translate('updateInfoEfficientDesc'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoSection(BuildContext context, ColorScheme colorScheme) {
-    return Column(
+  Widget _buildInfoRow(IconData icon, String title, String desc) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Informasi',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: colorScheme.onSurfaceVariant,
+        Icon(icon, size: 18, color: Colors.blueGrey),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text(desc,
+                  style:
+                      const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
           ),
-        ),
-        const SizedBox(height: 8),
-        _buildInfoTile(
-          LucideIcons.wifiOff,
-          'Aman saat Offline',
-          'Pemeriksaan update membutuhkan internet, namun alat tetap berfungsi normal tanpa update.',
-          colorScheme,
-        ),
-        const SizedBox(height: 8),
-        _buildInfoTile(
-          LucideIcons.shieldCheck,
-          'Kontrol Penuh di Tangan Anda',
-          'Tidak ada yang berubah di alat tanpa konfirmasi eksplisit dari Anda.',
-          colorScheme,
-        ),
-        const SizedBox(height: 8),
-        _buildInfoTile(
-          LucideIcons.bluetooth,
-          'Membutuhkan Koneksi BLE',
-          'Untuk mengirim data ke alat, Bluetooth harus terhubung ke perangkat ESP32.',
-          colorScheme,
         ),
       ],
     );
   }
 
-  Widget _buildInfoTile(
-    IconData icon,
-    String title,
-    String desc,
-    ColorScheme colorScheme,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: colorScheme.primary),
-          const SizedBox(width: 10),
-          Expanded(
+  Widget _buildHardGateOverlay(
+      BuildContext context, ColorScheme colorScheme, AppLocalizations l10n) {
+    return Positioned.fill(
+      child: Container(
+        color: colorScheme.surface.withValues(alpha: 0.98),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
+                const Icon(LucideIcons.bluetoothOff,
+                    color: Colors.red, size: 64),
+                const SizedBox(height: 32),
                 Text(
-                  title,
+                  l10n.translate('updateGateTitle'),
                   style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
+                      fontSize: 22, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 16),
                 Text(
-                  desc,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  l10n.translate('updateGateDesc'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 14, color: Colors.grey, height: 1.5),
+                ),
+                const SizedBox(height: 40),
+                FilledButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content:
+                            Text(l10n.translate('updateOpenSyncHint'))));
+                  },
+                  icon: const Icon(LucideIcons.bluetooth),
+                  label: Text(l10n.translate('updateOpenSyncMenu')),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  // ─── Status Display Resolver ──────────────────────────────────────────────
-  (IconData, Color, String, String) _resolveStatusDisplay(
-      LyricUpdateProvider provider) {
-    return switch (provider.state) {
+  // ─── Data Resolvers ─────────────────────────────────────────────────────────
+
+  (IconData, Color, Color) _resolveIllustration(LyricUpdateProvider p) {
+    return switch (p.state) {
+      UpdateScreenState.idle ||
+      UpdateScreenState.upToDate =>
+        (LucideIcons.checkCircle2, Colors.green, Colors.green),
+      UpdateScreenState.updateAvailable ||
+      UpdateScreenState.readyToSync =>
+        (LucideIcons.download, Colors.blue, Colors.blue),
+      UpdateScreenState.checkFailed ||
+      UpdateScreenState.downloadFailed =>
+        (LucideIcons.alertTriangle, Colors.orange, Colors.red),
+      UpdateScreenState.checking ||
+      UpdateScreenState.downloading =>
+        (LucideIcons.loader, Colors.blue, Colors.blue),
+    };
+  }
+
+  /// Mengembalikan key lokalisasi untuk title, subtitle, dan flag showVersion
+  (String, String, bool) _resolveTextKeys(LyricUpdateProvider p) {
+    return switch (p.state) {
       UpdateScreenState.idle => (
-          LucideIcons.cloud,
-          Colors.blue,
-          'Siap Memeriksa',
-          'Tekan tombol di bawah untuk memeriksa pembaruan terbaru.',
+          'updateStatusIdleTitle',
+          'updateStatusIdleDesc',
+          false
         ),
       UpdateScreenState.checking => (
-          LucideIcons.loader,
-          Colors.orange,
-          'Memeriksa...',
-          'Menghubungi server untuk memeriksa versi terbaru.',
+          'updateStatusCheckingTitle',
+          'updateStatusCheckingDesc',
+          false
         ),
       UpdateScreenState.upToDate => (
-          LucideIcons.checkCircle,
-          Colors.green,
-          'Sudah Terbaru',
-          'Lirik di alat Anda sudah menggunakan versi terbaru.',
+          'updateStatusUpToDateTitle',
+          'updateStatusUpToDateDesc',
+          false
         ),
       UpdateScreenState.updateAvailable => (
-          LucideIcons.download,
-          Colors.blue,
-          'Update Tersedia! (${provider.serverVersion})',
-          'Ada versi baru. Unduh untuk memperbarui lirik di alat.',
+          'updateStatusAvailableTitle',
+          'updateStatusAvailableDesc',
+          true
         ),
       UpdateScreenState.checkFailed => (
-          LucideIcons.cloudOff,
-          Colors.red,
-          'Gagal Terhubung',
-          'Tidak dapat menghubungi server. Periksa koneksi internet.',
+          'updateStatusCheckFailedTitle',
+          'updateStatusCheckFailedDesc',
+          false
         ),
       UpdateScreenState.downloading => (
-          LucideIcons.download,
-          Colors.orange,
-          'Mengunduh Aset...',
-          'Mengunduh data lirik terbaru dari server.',
+          'updateStatusDownloadingTitle',
+          'updateStatusDownloadingDesc',
+          true
         ),
       UpdateScreenState.readyToSync => (
-          LucideIcons.checkCircle2,
-          Colors.green,
-          'Unduhan Selesai',
-          'Data lirik siap dikirimkan ke alat ESP32 Anda.',
+          'updateStatusReadyTitle',
+          'updateStatusReadyDesc',
+          true
         ),
       UpdateScreenState.downloadFailed => (
-          LucideIcons.alertTriangle,
-          Colors.red,
-          'Unduhan Gagal',
-          'Terjadi kesalahan saat mengunduh. Silakan coba lagi.',
+          'updateStatusDownloadFailedTitle',
+          'updateStatusDownloadFailedDesc',
+          false
         ),
     };
   }

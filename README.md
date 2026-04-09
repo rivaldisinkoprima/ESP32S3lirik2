@@ -184,19 +184,19 @@ flutter/
 ### 2.5 Cloud-Based OTA System (Supabase)
 
 - **Platform:** Sistem ini menggunakan **Supabase Storage** sebagai CDN (gratis).
-- **Setup Endpoint:** Anda wajib mengganti URL endpoint bawaan menjadi Project URL Anda sendiri. Buka `flutter/lib/services/lyric_update_service.dart` dan ubah `YOUR_PROJECT_ID` di dalam variabel URL dengan ID proyek Supabase milik instansi Anda.
-- **Struktur Bucket Wajib:** Buatlah public bucket bernama `lirik-assets` dengan hierarki mutlak sebagai berikut:
+- **Arsitektur Hard-Gate OTA:** Menu Cloud Update **terkunci penuh** sebelum HP terhubung ke ESP32 via Bluetooth. Hal ini menjamin sinkronisasi versi yang 100% akurat karena aplikasi membaca **Versi Alat Aktual** langsung dari hardware.
+- **Hardware Source of Truth (NVS):** Versi lirik disimpan secara permanen di partisi NVS ESP32 (menggunakan library `Preferences.h`). Data ini **imun** terhadap `Factory Reset` harian yang hanya menghapus audio di LittleFS.
+- **Setup Endpoint:** Anda wajib mengganti URL endpoint bawaan menjadi Project URL Anda sendiri di `flutter/lib/services/lyric_update_service.dart`.
+- **Struktur Bucket Wajib:**
   ```text
-  lirik-assets/ (Nama Bucket public)
+  lirik-assets/hierarki:
    └── update/
-        ├── version.txt               <-- File pemicu versi
+        ├── version.txt               <-- Penanda rilis terbaru
         └── assets/
-             ├── data.json            <-- Payload data sinkronisasi mentah
-             ├── 001.mp3              <-- File audio Deret 1
-             ├── 002.mp3              <-- File audio Deret 2
-             └── ...010.mp3           <-- File audio Deret 10
+             ├── data.json            <-- Payload lirik
+             ├── 001.mp3 - 010.mp3    <-- File audio pendukung
   ```
-- **Alur Pintar:** App memanggil file ringan `version.txt` (~10 byte) lebih dulu. Jika versinya baru, UI tombol Update akan terbuka. Fitur ini sengaja dibuat non-otomatis, melindungi kuota internet pengguna dan kontrol otoritas RS.
+- **Konfirmasi Penulisan:** Versi baru di dalam alat hanya akan diperbarui (via perintah `@SET_VERSION`) setelah transfer file `OK:10/10` terkonfirmasi sukses oleh hardware.
 
 ---
 
@@ -207,7 +207,7 @@ flutter/
 | File | Fungsi |
 |------|--------|
 | `ESP32S3lirik2.ino` | Main program, setup, loop, logic `listderet` (LittleFS-first) |
-| `ble_server.ino` | BLE GATT Server & JSON Chunk Reassembler |
+| `ble_server.ino` | BLE GATT Server, JSON Chunk Reassembler, & Hardware Versioning Handling |
 | `littlefs_handler.ino` | Manajemen file internal (Read/Write/Delete JSON) |
 | `begin.ino` | Inisialisasi device, native screen cleanup |
 | `oke.ino` | Button OK handler & playback trigger |
@@ -258,6 +258,10 @@ SD Card/
 ```json
 {"payload JSON"}[EOF]
 ```
+
+**Hardware Versioning:**
+- `@GET_VERSION[EOF]` : HP meminta string versi dari NVS ESP32.
+- `@SET_VERSION:x.y.z[EOF]` : HP memerintahkan ESP32 menyimpan versi `x.y.z` ke NVS.
 
 **Factory Reset:**
 ```json

@@ -58,6 +58,9 @@ class BleProvider with ChangeNotifier {
   List<DeretCheckResult>? _checkResults; // null = belum pernah cek, [] = sudah cek & kosong
   String _checkBuffer = ""; // Buffer reassembly untuk respons chunked dari ESP32
 
+  // --- State untuk Hardware Version (NVS) ---
+  String? _hardwareVersion; // null = belum pernah terhubung/belum dibaca
+
   List<ScanResult> get scanResults => _scanResults;
   bool get isScanning => _isScanning;
   BluetoothDevice? get connectedDevice => _connectedDevice;
@@ -65,6 +68,7 @@ class BleProvider with ChangeNotifier {
   String get lastStatus => _lastStatus;
   bool get isChecking => _isChecking;
   List<DeretCheckResult>? get checkResults => _checkResults;
+  String? get hardwareVersion => _hardwareVersion;
 
   BleProvider() {
     FlutterBluePlus.scanResults.listen((results) {
@@ -121,6 +125,9 @@ class BleProvider with ChangeNotifier {
         _statusSub = _lirikCharacteristic!.onValueReceived.listen((value) {
           _handleIncomingNotify(utf8.decode(value));
         });
+
+        // Auto-fetch Hardware Version dari NVS ESP32
+        await readHardwareVersion();
       }
 
       notifyListeners();
@@ -150,7 +157,7 @@ class BleProvider with ChangeNotifier {
         _parseCheckPayload(payload);
       }
     } else {
-      // Mode normal: status feedback singkat (OK:10/10, ERR:...)
+      // Mode normal: status feedback singkat (OK:10/10, ERR:..., ACK_VER, atau versi)
       _lastStatus = data;
       debugPrint('[BLE-FEEDBACK] Status dari ESP32: $_lastStatus');
       notifyListeners();
@@ -273,6 +280,62 @@ class BleProvider with ChangeNotifier {
     _isChecking = false;
     _checkBuffer = "";
     _checkResults = null;
+    _hardwareVersion = null; // Reset saat disconnect
     notifyListeners();
+  }
+
+  // ─── Hardware Version Commands ──────────────────────────────────────────────
+
+  /// Membaca versi lirik yang tersimpan di NVS ESP32 via BLE.
+  /// Dipanggil otomatis setelah koneksi berhasil.
+  Future<void> readHardwareVersion() async {
+    if (_lirikCharacteristic == null) return;
+
+    debugPrint('[BLE-VER] Sending @GET_VERSION...');
+    final cmd = '@GET_VERSION[EOF]';
+    final bytes = utf8.encode(cmd);
+    await _lirikCharacteristic!.write(bytes, withoutResponse: false);
+
+    // Tunggu respons singkat dari ESP32 (max 3 detik)
+    for (int i = 0; i < 30; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_lastStatus.isNotEmpty &&
+          !_lastStatus.startsWith('OK:') &&
+          !_lastStatus.startsWith('ERR:') &&
+          _lastStatus != 'ACK_VER') {
+        _hardwareVersion = _lastStatus;
+        debugPrint('[BLE-VER] Hardware version: $_hardwareVersion');
+        _lastStatus = ''; // Bersihkan agar tidak mengganggu flow lain
+        notifyListeners();
+        return;
+      }
+    }
+    debugPrint('[BLE-VER] Timeout reading hardware version');
+  }
+
+  /// Menyimpan versi lirik ke NVS ESP32 setelah Sync berhasil.
+  /// Dipanggil oleh BleSyncScreen setelah mendapat `OK:n/n`.
+  Future<bool> sendSetVersion(String version) async {
+    if (_lirikCharacteristic == null) return false;
+
+    debugPrint('[BLE-VER] Sending @SET_VERSION:$version...');
+    _lastStatus = ''; // Reset agar polling bersih
+    final cmd = '@SET_VERSION:$version[EOF]';
+    final bytes = utf8.encode(cmd);
+    await _lirikCharacteristic!.write(bytes, withoutResponse: false);
+
+    // Tunggu ACK_VER dari ESP32 (max 3 detik)
+    for (int i = 0; i < 30; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_lastStatus == 'ACK_VER') {
+        _hardwareVersion = version;
+        debugPrint('[BLE-VER] SET_VERSION acknowledged by ESP32');
+        _lastStatus = ''; // Bersihkan
+        notifyListeners();
+        return true;
+      }
+    }
+    debugPrint('[BLE-VER] Timeout waiting for ACK_VER');
+    return false;
   }
 }

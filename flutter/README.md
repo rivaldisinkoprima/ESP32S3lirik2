@@ -23,7 +23,7 @@ Aplikasi ini berfungsi sebagai **bridge wireless** untuk:
 | FR.A7 | Data Chunking | Pemecahan payload 512 bytes per chunk untuk kestabilan BLE |
 | FR.A8 | Factory Reset | Kirim perintah reset ke ESP32 |
 | FR.A9 | Premium Branding | Custom Launcher Icon & Animated Splash Screen (3 detik) |
-| FR.A10| Cloud OTA Update | Download JSON mentah & MP3 dari Supabase dengan version.txt check |
+| FR.A10| Cloud OTA Update | Download resource (JSON/MP3) dari Supabase dengan sistem **Hard-Gate** (wajib terkoneksi BLE untuk baca/tulis versi alat aktual). |
 
 ## Struktur Folder
 
@@ -199,22 +199,23 @@ flutter build apk
 4. Tekan "Sync All" untuk kirim semua data deret
 5. Atau "Factory Reset" untuk reset ESP32
 
-#### h. Setup Konfigurasi Cloud OTA (Supabase)
-Sebelum menggunakan fitur **"Cloud Update"** di aplikasi, developer wajib mensetting endpoint Supabase:
-1. Buka `lib/services/lyric_update_service.dart`
-2. Temukan variabel statik `_versionUrl` dan `_dataJsonUrl`.
-3. Ganti `YOUR_PROJECT_ID` dengan ID Supabase asli milik Anda.
-4. Buat bucket _public_ bernama `lirik-assets` dengan struktur mutlak berikut:
+#### h. Cloud OTA (Hard-Gate Architecture)
+Fitur ini menjamin akurasi versi dengan mewajibkan koneksi ke alat fisik:
+1. **Bluetooth Lock:** Menu Update terkunci jika BLE tidak terhubung.
+2. **Hardware Truth:** Aplikasi membaca versi dari NVS ESP32 via `@GET_VERSION`.
+3. **Download:** Mengunduh aset (data.json & audio) sesuai selisih versi server.
+4. **Commit:** Versi baru hanya ditulis ke NVS ESP32 (`@SET_VERSION`) setelah transfer lirik 10 deret sukses.
+
+**Setup Supabase Bucket:**
+1. Bucket public `lirik-assets` harus memiliki struktur:
    ```text
-   lirik-assets/ (Bucket Name)
-    └── update/
-         ├── version.txt               <-- Penanda rilis (contoh isi: 1.2.0)
+   lirik-assets/update/
+         ├── version.txt               <-- Penanda rilis (contoh: 1.2.0)
          └── assets/
-              ├── data.json            <-- Raw metadata lirik format Simple
-              ├── 001.mp3              <-- File audio Deret 1
-              ├── 002.mp3              <-- File audio Deret 2
-              └── ...010.mp3           <-- File audio Deret 10
+               ├── data.json            <-- Raw metadata lirik
+               └── 001.mp3 - 010.mp3    <-- File audio
    ```
+2. Setting endpoint di `lib/services/lyric_update_service.dart`.
 
 ## Bluetooth UUID
 
@@ -246,13 +247,16 @@ Chunk 2: ...}]}[EOF]
 
 Setiap chunk dikirim secara berurutan dengan `withoutResponse: false` untuk memastikan data sampai.
 
-### Factory Reset
+### **Hardware Versioning:**
+- `@GET_VERSION[EOF]` : Aplikasi meminta versi lirik dari ESP32.
+- `@SET_VERSION:x.y.z[EOF]` : Aplikasi menyimpan versi `x.y.z` ke NVS ESP32.
 
+**Factory Reset:**
 ```json
 {"c": "reset"}[EOF]
 ```
 
-ESP32 akan mereset semua data ke default pabrik.
+ESP32 akan mereset semua data audio/lirik di LittleFS, namun tetap mempertahankan string versi di NVS.
 
 ## Dependencies
 
