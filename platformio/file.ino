@@ -25,23 +25,30 @@ void file(){
 
 void displayMenu() {
     displaymenu = 1;
-    tft.fillScreen(ST77XX_BLACK);
-    tft.setCursor(45,36);
-    tft.print("FILE");
+    // Gunakan GFXcanvas16 untuk buffering agar tidak flicker (Mulus tanpa berkedip)
+    GFXcanvas16 canvas(128, 140);
+    canvas.setFont(&FreeSans9pt7b);
+    canvas.fillScreen(ST77XX_BLACK);
+    canvas.setCursor(45, 16); // offset -20
+    canvas.print("FILE");
     for (int i = 0; i < itemsPerPage; i++) {
         int index = page * itemsPerPage + i;
         if (index < menuCount) {
-            tft.setCursor(10, (i + 2) * 15 + 30);
+            canvas.setCursor(10, (i + 2) * 15 + 10); // offset -20
             if (index == selectedIndex) {
-                tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
+                canvas.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
             } else {
-                tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+                canvas.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
             }
-            tft.print(menuItems[index]);
+            canvas.print(menuItems[index]);
             posisi = 4;
         }
     } 
-    tft.setTextColor(ST77XX_WHITE);
+    canvas.setTextColor(ST77XX_WHITE);
+    
+    // Push buffer ke layar
+    tft.drawRGBBitmap(0, 20, canvas.getBuffer(), 128, 140);
+
     Serial.println(selectedIndex);
     tampiljam();
     bat_cas_move();
@@ -52,39 +59,49 @@ void displayMenu() {
  */
 void displayDeretGeneric(int deretIndex, int page) {
     posisi = 5;
-    tft.fillScreen(ST77XX_BLACK);
+    
+    GFXcanvas16 canvas(128, 140);
+    canvas.setFont(&FreeSans9pt7b);
+    canvas.fillScreen(ST77XX_BLACK);
     
     int currentSlot = deretIndex + 1;
     
     if (!deretExistsInLittleFS(currentSlot)) {
-        tft.setTextColor(ST77XX_RED);
-        tft.setCursor(10, 80);
-        tft.print("DATA KOSONG");
-        tft.setCursor(10, 100);
-        tft.setTextSize(1);
-        tft.print("Kirim dari aplikasi");
+        canvas.setTextColor(ST77XX_RED);
+        canvas.setCursor(10, 60); // offset -20
+        canvas.print("DATA KOSONG");
+        canvas.setCursor(10, 80); // offset -20
+        canvas.setTextSize(1);
+        canvas.print("Kirim dari aplikasi");
+        tft.drawRGBBitmap(0, 20, canvas.getBuffer(), 128, 140);
         tampiljam();
+        bat_cas_move();
         return;
     }
 
-    tft.setTextColor(ST77XX_MAGENTA);
-    tft.setCursor(33, 36);
-    tft.print("DERET ");
-    tft.print(currentSlot); 
+    canvas.setTextColor(ST77XX_MAGENTA);
+    canvas.setCursor(33, 16); // offset -20
+    canvas.print("DERET ");
+    canvas.print(currentSlot); 
 
     // Muat sementara hanya untuk ditampilkan di menu File
     Word* tempWords = loadDeretFromLittleFS(currentSlot);
-    if (tempWords == NULL) return;
+    if (tempWords == NULL) {
+        tft.drawRGBBitmap(0, 20, canvas.getBuffer(), 128, 140);
+        tampiljam();
+        bat_cas_move();
+        return;
+    }
 
-    tft.setTextColor(ST77XX_WHITE);
+    canvas.setTextColor(ST77XX_WHITE);
     int totalWordsInSlot = loadedWordCount; 
     int startIdx = page * kataPerHalaman;
     int endIdx = min(startIdx + kataPerHalaman, totalWordsInSlot);
 
     for (int i = startIdx; i < endIdx; i++) {
-        tft.setCursor(10, 10 + (i - startIdx) * 15 + 45);
+        canvas.setCursor(10, 10 + (i - startIdx) * 15 + 25); // offset -20
         if (tempWords[i].text != NULL) {
-            tft.println(tempWords[i].text);
+            canvas.println(tempWords[i].text);
         }
     }
     
@@ -94,6 +111,7 @@ void displayDeretGeneric(int deretIndex, int page) {
     }
     delete[] tempWords;
 
+    tft.drawRGBBitmap(0, 20, canvas.getBuffer(), 128, 140);
     tampiljam();
     bat_cas_move();
 }

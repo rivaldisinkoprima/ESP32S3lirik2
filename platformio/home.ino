@@ -2,14 +2,8 @@
 
 // Fungsi Mandiri untuk Menggambar Menu Utama (Tanpa Cek Tombol)
 void drawMainMenu() {
-  tft.fillScreen(ST77XX_BLACK);
-  int h = 156, w = 128, row, col, buffidx = 0;
-  for (row = 0; row < h; row++) { 
-    for (col = 0; col < w; col++) { 
-      tft.drawPixel(col, row, pgm_read_word(menu_interface + buffidx));
-      buffidx++;
-    } 
-  }
+  tft.drawRGBBitmap(0, 0, menu_interface, 128, 156);
+  tft.fillRect(0, 156, 128, 4, ST77XX_BLACK);
   tampiljam();
   bat_cas_move();
   menu(pilihan);
