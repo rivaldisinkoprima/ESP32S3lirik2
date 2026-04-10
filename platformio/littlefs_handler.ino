@@ -115,7 +115,7 @@ void deleteAllDeretFiles() {
   Serial.println("[LFS-DEL] Deleting ALL deret files...");
 
   int deleted = 0;
-  for (int i = 1; i <= 20; i++) { // Support up to 20 derets
+  for (int i = 1; i <= 99; i++) { // Dinamis: support hingga 99 deret (batas DFPlayer)
     String filename = "/lirik/deret_" + String(i) + ".json";
     if (LittleFS.exists(filename)) {
       LittleFS.remove(filename);

@@ -14,7 +14,7 @@ Aplikasi ini berfungsi sebagai **bridge wireless** untuk:
 
 | Kode | Fitur | Deskripsi |
 |------|-------|-----------|
-| FR.A1 | Workspace Management | Mengelola 10 slot deret dengan data draft |
+| FR.A1 | Workspace Management | Mengelola slot deret secara dinamis (tanpa batas hardcode) |
 | FR.A2 | Audio Spike Detection | Deteksi otomatis timing kata dari file MP3 + Mismatch Warning |
 | FR.A3 | Validasi Karakter | Batas max 8 karakter per kata (OLED/TFT) |
 | FR.A4 | SOP Warning | Peringatan wajib gunakan MP3 dari Folder 03 (bebas noise) |
@@ -24,6 +24,8 @@ Aplikasi ini berfungsi sebagai **bridge wireless** untuk:
 | FR.A8 | Factory Reset | Kirim perintah reset ke ESP32 |
 | FR.A9 | Premium Branding | Custom Launcher Icon & Animated Splash Screen (3 detik) |
 | FR.A10| Cloud OTA Update | Download resource (JSON/MP3) dari Supabase dengan sistem **Hard-Gate** (wajib terkoneksi BLE untuk baca/tulis versi alat aktual). |
+| FR.A11| Memory Safety Handling | Menangkap kode `ERR:MEM_FULL` / `ERR:FLASH_FULL` dari ESP32 dan menampilkan pesan informatif jika memori perangkat >90%. |
+| FR.A12| Dynamic Audio Download | Download audio dari cloud berdasarkan jumlah deret aktual di `data.json`, bukan hardcode 10. |
 
 ## Struktur Folder
 
@@ -35,7 +37,8 @@ lib/
 │   └── word_entry.dart          # Model kata dengan timestamp
 ├── providers/
 │   ├── ble_provider.dart        # Manajemen koneksi BLE (scan, connect, write)
-│   └── workspace_provider.dart  # Manajemen state workspace & offset
+│   ├── workspace_provider.dart  # Manajemen state workspace & offset (slot dinamis)
+│   └── lyric_update_provider.dart # Cloud update: download & count deret dinamis
 ├── screens/
 │   ├── home_screen.dart         # Menu utama workspace + warning banner
 │   ├── deret_editor_screen.dart  # Editor kata + waveform + auto-detect
@@ -129,7 +132,7 @@ Ketika user klik "Sync All", aplikasi mengirim array JSON berisi semua deret yan
       {"t": 148000, "w": "MUSUH"}
     ]
   }
-  // ... deret 3 hingga 10
+  // ... deret 3 hingga N (dinamis)
 ]
 ```
 
@@ -137,7 +140,7 @@ Ketika user klik "Sync All", aplikasi mengirim array JSON berisi semua deret yan
 
 | Field | Tipe | Deskripsi |
 |-------|------|-----------|
-| `d` | Integer | Nomor slot deret (1-10) |
+| `d` | Integer | Nomor slot deret (1-N, dinamis tanpa batas hardcode) |
 | `name` | String | Nama deret (tampil di display ESP32) |
 | `v` | Array | Array kata |
 | `v[].t` | Integer | Timestamp dalam milidetik (sudah + offset delay) |
@@ -167,7 +170,7 @@ flutter build apk
 ### 3. Alur Kerja
 
 #### a. Buka App
-- Tampilan Home dengan 10 slot deret
+- Tampilan Home dengan slot deret dinamis (default 10, bisa ditambah)
 - Warning banner: "Gunakan file MP3 dari FOLDER 03 (bebas noise)"
 
 #### b. Pilih Deret
@@ -203,8 +206,8 @@ flutter build apk
 Fitur ini menjamin akurasi versi dengan mewajibkan koneksi ke alat fisik:
 1. **Bluetooth Lock:** Menu Update terkunci jika BLE tidak terhubung.
 2. **Hardware Truth:** Aplikasi membaca versi dari NVS ESP32 via `@GET_VERSION`.
-3. **Download:** Mengunduh aset (data.json & audio) sesuai selisih versi server.
-4. **Commit:** Versi baru hanya ditulis ke NVS ESP32 (`@SET_VERSION`) setelah transfer lirik 10 deret sukses.
+3. **Download:** Mengunduh aset (data.json & audio) sesuai selisih versi server — jumlah file audio dinamis berdasarkan isi `data.json`.
+4. **Commit:** Versi baru hanya ditulis ke NVS ESP32 (`@SET_VERSION`) setelah transfer lirik sukses.
 
 **Setup Supabase Bucket:**
 1. Bucket public `lirik-assets` harus memiliki struktur:
@@ -213,7 +216,7 @@ Fitur ini menjamin akurasi versi dengan mewajibkan koneksi ke alat fisik:
          ├── version.txt               <-- Penanda rilis (contoh: 1.2.0)
          └── assets/
                ├── data.json            <-- Raw metadata lirik
-               └── 001.mp3 - 010.mp3    <-- File audio
+               └── 001.mp3 - NNN.mp3    <-- File audio (jumlah dinamis)
    ```
 2. Setting endpoint di `lib/services/lyric_update_service.dart`.
 
@@ -258,6 +261,14 @@ Setiap chunk dikirim secara berurutan dengan `withoutResponse: false` untuk mema
 
 ESP32 akan mereset semua data audio/lirik di LittleFS, namun tetap mempertahankan string versi di NVS.
 
+**Memory Safety Response:**
+| Kode | Deskripsi |
+|------|-----------|
+| `ERR:MEM_FULL` | PSRAM perangkat >90% terpakai, sync ditolak |
+| `ERR:FLASH_FULL` | Flash storage LittleFS <50KB tersisa, sync ditolak |
+
+Aplikasi akan menampilkan pesan: *"Memori perangkat hampir penuh (>90%). Hapus beberapa deret yang tidak digunakan untuk melanjutkan."*
+
 ## Dependencies
 
 ```yaml
@@ -287,3 +298,5 @@ dependencies:
 | Sync gagal/putus | Payload dipecah 512 bytes per chunk untuk kestabilan |
 | Spike detection tidak akurat | Pastikan MP3 dari Folder 03 (bebas noise) |
 | Kata tidak muncul di TFT | Kurangi offset delay di Settings (-500ms to +500ms) |
+| `ERR:MEM_FULL` saat sync | Memori ESP32 >90%. Hapus deret yang tidak terpakai dari perangkat |
+| Deret >10 tidak muncul di TFT | Pastikan firmware ESP32 sudah di-update ke versi terbaru (dynamic slots) |

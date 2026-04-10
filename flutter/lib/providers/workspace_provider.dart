@@ -122,7 +122,7 @@ class WorkspaceProvider with ChangeNotifier {
         if (!key.startsWith('deret_') || entry.value is! List) continue;
 
         final slotNum = int.tryParse(key.replaceAll('deret_', ''));
-        if (slotNum == null || slotNum < 1 || slotNum > 10) continue;
+        if (slotNum == null || slotNum < 1) continue; // Tanpa batas atas (dinamis)
 
         final words = (entry.value as List)
             .map((e) => e.toString().toUpperCase())

@@ -729,6 +729,15 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
           break;
         }
         if (ble.lastStatus.startsWith('ERR:')) {
+          // Penanganan khusus untuk memori perangkat penuh
+          if (ble.lastStatus.contains('MEM_FULL') || 
+              ble.lastStatus.contains('FLASH_FULL')) {
+            throw Exception(
+              _l10n?.translate('memoryFull') ?? 
+              'Memori perangkat hampir penuh (>90%). '
+              'Hapus beberapa deret yang tidak digunakan untuk melanjutkan.'
+            );
+          }
           throw Exception('ESP32 Error: ${ble.lastStatus}');
         }
         retry++;

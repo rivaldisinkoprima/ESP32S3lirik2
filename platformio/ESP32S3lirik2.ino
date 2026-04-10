@@ -99,6 +99,13 @@ enum ChargerState { NOT_CHARGING, CHARGING, FULL };
 ChargerState lastState = NOT_CHARGING;
 ChargerState currentState;
 
+// === Manajemen Memori Dinamis ===
+size_t totalPsramSize = 0;       // Total PSRAM fisik (otomatis deteksi)
+size_t safePsramThreshold = 0;   // Batas minimum PSRAM tersisa (10% dari total)
+size_t totalFlashSize = 0;       // Total LittleFS capacity
+const size_t SAFE_FLASH_MIN = 50 * 1024; // Minimal 50KB sisa flash
+int activeDaretCount = 10;       // Jumlah deret aktif (dinamis, di-update saat boot)
+
 unsigned long lastRTC = 0;
 int lastBatteryUpdate = 0;
 
@@ -159,94 +166,122 @@ void notifyStatus(const char *status);
 bool saveDeretToLittleFS(int slot, const String &name, const String &jsonWords);
 void sendCheckPayload();
 String buildCheckPayload();
+bool checkMemorySafety();
+int getDeretCount();
 // ---------------------------------------------
 
 void setup() {
+  Serial.begin(115200); // Sinkronkan dengan platformio.ini 115200
+  Serial.println("\n[SYSTEM] Starting Setup...");
+  Serial.flush();
+
   pinMode(TrigMic, OUTPUT);
   pinMode(TrigRlyDF, OUTPUT);
   digitalWrite(TrigMic, LOW);
   digitalWrite(TrigRlyDF, LOW);
-  delay(200);
-  pinMode(TrigPower, OUTPUT);
-  digitalWrite(TrigPower, LOW);
-  pinMode(14, INPUT);
-  Serial.begin(9600);
+  delay(100);
+
+  Serial.println("[TRACE] Initializing TFT SPI...");
+  Serial.flush();
   spiTFT.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(2);
   pinMode(17, OUTPUT);
   digitalWrite(17, HIGH);
   delay(200);
+  Serial.println("[TRACE] Drawing Splash Screen...");
+  Serial.flush();
   begin();
-  Wire.begin(37, 38);
+  
+  Serial.println("[TRACE] Setup progressing...");
+  Serial.flush();
+  
+  // Wire.begin(37, 38); 
+  // Wire.setTimeOut(150); 
+  Serial.println("[TRACE] I2C Bypassed");
+  Serial.flush();
+
   // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai
   // Pullup
   pinMode(buttonNext, INPUT_PULLUP);
   pinMode(buttonPause, INPUT_PULLUP);
-  /*
-  pinMode(buttonHome, INPUT);
-  pinMode(buttonPrevious, INPUT);
-  gpio_pulldown_en(GPIO_NUM_2); // aktifkan internal pull-down
-  gpio_pullup_dis(GPIO_NUM_2);  // pastikan pull-up dimatikan
-  pinMode(buttonVolup, INPUT);
-  pinMode(buttonVoldown, INPUT);
-  pinMode(buttonMode, INPUT);
-  gpio_pulldown_en(GPIO_NUM_6); // aktifkan internal pull-down
-  gpio_pullup_dis(GPIO_NUM_6);  // pastikan pull-up dimatikan
-  */
   pinMode(buttonMDokter, INPUT);
-  // pinMode(buttonMPasien,INPUT);
   pinMode(buttonPower, INPUT_PULLUP);
   pinMode(PIN_CHRG, INPUT_PULLUP);
   pinMode(PIN_STBY, INPUT_PULLUP);
+  
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
+  Serial.println("[TRACE] Reading Battery");
   for (int i = 0; i < 20; i++) {
     analogRead(BAT_ADC_PIN);
     delay(10);
   }
-
-  // --- BARU BOLEH GAMBAR ---
-  // currentState = getChargerState();
-  // drawBatteryScreen(currentState);
-  // lastState = currentState;
+  Serial.println("[TRACE] Battery check done");
+  Serial.flush();
 
   mySerial1.begin(9600, SERIAL_8N1, 36, 35); // RX=1, TX=2 (Adjust as needed)
   delay(1000);
-  Serial.println("Initializing DFPlayer ...");
+  Serial.println("[TRACE] Initializing DFPlayer ...");
+  Serial.flush();
 
-  if (!myDFPlayer.begin(mySerial1, true, true)) {
-    Serial.println(F("DFPlayer tidak ditemukan (Skip untuk testing)"));
-    // while (true) ; // Disabled untuk testing tanpa hardware
-  } else {
-    // ----Set volume----
-    myDFPlayer.volume(loud); // Set volume value (0~30).
+  mySerial1.setTimeout(100);
+  
+  // --- DI-COMMENT UNTUK TESTING ---
+  // if (!myDFPlayer.begin(mySerial1, false, false)) {
+  //  Serial.println(F("[TRACE] DFPlayer tidak ditemukan (Skip)"));
+  // } else {
+  //  myDFPlayer.volume(loud); // Set volume value (0~30).
+  //  myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
+  //  myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+  //  myDFPlayer.playFolder(1, 1);
+  //  delay(200);
+  //  myDFPlayer.stop();
+  // }
+  
+  Serial.println("[TRACE] DFPlayer Init Block Passed!");
+  Serial.flush();
 
-    //----Set different EQ----
-    myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
-
-    myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
-    myDFPlayer.playFolder(1, 1);
-    delay(200);
-    myDFPlayer.stop();
-  }
   tft.setFont(&FreeSans9pt7b); // Atur font
   tft.setTextSize(1);
-  readRTC();
+  Serial.println("[TRACE] Font set");
+  Serial.flush();
+  
+  // readRTC(); // MATIKAN TOTAL UNTUK TESTING
+  Serial.println("[TRACE] RTC Bypassed");
+  Serial.flush();
+  
   digitalWrite(TrigMic, HIGH);
   digitalWrite(TrigRlyDF, HIGH);
 
+  Serial.println("[TRACE] Starting LittleFS Init");
+  Serial.flush();
   // Initialize LittleFS
   if (initLittleFS()) {
     Serial.println("[SETUP] LittleFS ready for lyrics storage");
-    // Debug: show which derets have LittleFS data
+    
+    // === DIAGNOSTIK MEMORI ADAPTIF ===
+    totalPsramSize = ESP.getPsramSize();
+    safePsramThreshold = totalPsramSize / 10; // 10% dari total PSRAM
+    totalFlashSize = LittleFS.totalBytes();
+    activeDaretCount = getDeretCount();
+    if (activeDaretCount < 1) activeDaretCount = 1; // Minimal 1 deret
+
+    Serial.println("[SETUP] === MEMORY DIAGNOSTICS ===");
+    Serial.printf("[SETUP]   PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize, totalPsramSize / 1048576.0);
+    Serial.printf("[SETUP]   PSRAM Free  : %u bytes\n", ESP.getFreePsram());
+    Serial.printf("[SETUP]   PSRAM Gate  : %u bytes (10%% threshold)\n", safePsramThreshold);
+    Serial.printf("[SETUP]   Flash Total : %u bytes\n", totalFlashSize);
+    Serial.printf("[SETUP]   Flash Used  : %u bytes\n", LittleFS.usedBytes());
+    Serial.printf("[SETUP]   Flash Free  : %u bytes\n", totalFlashSize - LittleFS.usedBytes());
+    Serial.printf("[SETUP]   Active Derets: %d\n", activeDaretCount);
+    Serial.println("[SETUP] ==============================");
+
+    // Debug: tampilkan deret yang ada (DINAMIS)
     Serial.println("[SETUP] Checking LittleFS deret availability:");
-    for (int i = 1; i <= 10; i++) {
-      Serial.print("[SETUP]   Deret ");
-      Serial.print(i);
-      Serial.print(": ");
-      Serial.println(deretExistsInLittleFS(i) ? "LittleFS ✓"
-                                              : "Hardcoded (default)");
+    for (int i = 1; i <= activeDaretCount; i++) {
+      Serial.printf("[SETUP]   Deret %d: %s\n", i,
+                    deretExistsInLittleFS(i) ? "LittleFS ✓" : "Empty");
     }
   } else {
     Serial.println(
@@ -258,9 +293,8 @@ void setup() {
 
   Serial.println("[SETUP] ========================================");
   Serial.println("[SETUP] System initialization COMPLETE");
-  Serial.print("[SETUP] Free heap: ");
-  Serial.print(ESP.getFreeHeap());
-  Serial.println(" bytes");
+  Serial.printf("[SETUP] Free heap: %u bytes\n", ESP.getFreeHeap());
+  Serial.printf("[SETUP] Free PSRAM: %u bytes\n", ESP.getFreePsram());
   Serial.println("[SETUP] ========================================");
 }
 
@@ -405,7 +439,7 @@ void selanjutnya() {
   tft.fillRect(70, 15, 70, 25, ST77XX_BLACK);
   tft.setCursor(73, 35);
   deret++;
-  if (deret >= 11)
+  if (deret > activeDaretCount)
     deret = 1;
   tft.setTextSize(1);
   tft.print(deret);
@@ -434,7 +468,7 @@ void sebelumnya() {
   tft.setCursor(73, 35);
   deret--;
   if (deret <= 0)
-    deret = 10;
+    deret = activeDaretCount;
   tft.setTextSize(1);
   tft.print(deret);
   tft.fillTriangle(38, 105, 38, 123, 21, 114, ST77XX_WHITE);
@@ -559,6 +593,31 @@ void drawBTIcon() {
   }
 }
 
+/**
+ * Cek apakah memori masih aman untuk menyimpan deret baru.
+ * Returns: true = aman, false = penuh (>90% terpakai)
+ */
+bool checkMemorySafety() {
+    size_t freePsram = ESP.getFreePsram();
+    size_t freeFlash = LittleFS.totalBytes() - LittleFS.usedBytes();
+    
+    Serial.println("[MEM-CHECK] === Safety Gate ===");
+    Serial.printf("[MEM-CHECK]   PSRAM Free: %u / Threshold: %u\n", freePsram, safePsramThreshold);
+    Serial.printf("[MEM-CHECK]   Flash Free: %u / Threshold: %u\n", freeFlash, SAFE_FLASH_MIN);
+    
+    if (freePsram < safePsramThreshold) {
+        Serial.println("[MEM-CHECK] BLOCKED: PSRAM usage > 90%!");
+        return false;
+    }
+    if (freeFlash < SAFE_FLASH_MIN) {
+        Serial.println("[MEM-CHECK] BLOCKED: Flash storage almost full!");
+        return false;
+    }
+    
+    Serial.println("[MEM-CHECK] Memory OK, safe to proceed.");
+    return true;
+}
+
 void showSyncingUI(int slot, int total) {
   isSyncing = true;
   tft.fillRect(0, 40, 128, 80, ST77XX_BLACK);
@@ -573,9 +632,9 @@ void showSyncingUI(int slot, int total) {
   tft.print("Saving Slot: ");
   tft.print(slot);
 
-  // Progress Bar
+  // Progress Bar (dinamis berdasarkan total slot yang di-sync)
   tft.drawRect(15, 95, 98, 10, ST77XX_WHITE);
-  int progressW = (slot * 94) / 10; // Asumsi 10 slot total
+  int progressW = (slot * 94) / max(total, 1);
   tft.fillRect(17, 97, progressW, 6, ST77XX_CYAN);
 }
 

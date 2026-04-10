@@ -106,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final match = RegExp(r'^(\d{3})\.mp3$').firstMatch(name);
           if (match != null) {
             final num = int.parse(match.group(1)!);
-            if (num >= 1 && num <= 10) {
+            if (num >= 1) { // Tanpa batas atas (dinamis)
               audioMap[num] = file.path!;
             }
           }
@@ -141,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
               final key = entry.key.toLowerCase();
               if (key.startsWith('deret_') && entry.value is List) {
                 final slotNum = int.tryParse(key.replaceAll('deret_', ''));
-                if (slotNum != null && slotNum >= 1 && slotNum <= 10) {
+                if (slotNum != null && slotNum >= 1) { // Tanpa batas atas (dinamis)
                   wordData['deret_$slotNum'] = (entry.value as List)
                       .map((e) => e.toString())
                       .toList();

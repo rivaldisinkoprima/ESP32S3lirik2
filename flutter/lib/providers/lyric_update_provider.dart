@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -111,13 +112,15 @@ class LyricUpdateProvider extends ChangeNotifier {
     }
     _downloadedDataJson = dataJson;
 
-    // Step 2: Download audio per deret (001.mp3 - 010.mp3)
+    // Step 2: Download audio per deret (dinamis berdasarkan data.json)
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final audioDir = Directory('${appDir.path}/cloud_audio');
       if (!await audioDir.exists()) await audioDir.create(recursive: true);
 
-      for (int i = 1; i <= 10; i++) {
+      // Hitung jumlah deret dari data.json yang sudah didownload
+      final deretCount = _countDeretsInJson(_downloadedDataJson ?? '');
+      for (int i = 1; i <= deretCount; i++) {
         final url = LyricUpdateService.getAudioUrl(i);
         final bytes = await _service.downloadAudio(url);
         if (bytes != null && bytes.isNotEmpty) {
@@ -161,5 +164,17 @@ class LyricUpdateProvider extends ChangeNotifier {
   void _setState(UpdateScreenState newState) {
     _state = newState;
     notifyListeners();
+  }
+
+  /// Hitung jumlah deret di dalam string JSON data.json
+  int _countDeretsInJson(String json) {
+    try {
+      final data = jsonDecode(json) as Map<String, dynamic>;
+      return data.keys
+          .where((k) => k.toLowerCase().startsWith('deret_'))
+          .length;
+    } catch (_) {
+      return 10; // Fallback default
+    }
   }
 }

@@ -265,6 +265,14 @@ void parseBlePayload(const String& payload) {
         }
     }
     
+    // === SAFETY GATE: Cek memori sebelum menyimpan ===
+    if (!checkMemorySafety()) {
+        Serial.println("[BLE-PARSE] REJECTED: Memory threshold exceeded!");
+        notifyStatus("ERR:MEM_FULL");
+        isSyncing = false;
+        return;
+    }
+
     int successCount = 0;
     int failCount = 0;
     
@@ -307,6 +315,9 @@ void parseBlePayload(const String& payload) {
     
     hideSyncingUI();
     listLirikFiles();
+    activeDaretCount = getDeretCount(); // Refresh jumlah deret aktif
+    if (activeDaretCount < 1) activeDaretCount = 1;
+    Serial.printf("[BLE] Active deret count updated: %d\n", activeDaretCount);
     isSyncing = false; // Lepas kunci layar: Kembalikan akses ke Core 1
 }
 

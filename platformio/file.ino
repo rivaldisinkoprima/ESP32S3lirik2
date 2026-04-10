@@ -5,10 +5,11 @@
  * Optimasi: 10 fungsi displayderet identik dikonsolidasikan menjadi 1 fungsi generik.
  */
 
-const char* menuItems[] = {"DERET 1", "DERET 2", "DERET 3", "DERET 4", "DERET 5", 
-                           "DERET 6", "DERET 7", "DERET 8", "DERET 9", "DERET 10"};
+// Menu deret sekarang dinamis berdasarkan file LittleFS yang tersedia
+int menuCount = 10; // Akan di-update saat file() dipanggil
 
-const int menuCount = 10;
+// Buffer nama menu (digunakan saat rendering)
+char menuItemBuffer[16]; // "DERET XX" max 15 char + null
 const int itemsPerPage = 5;
 int selectedIndex = 0;
 int page = 0;
@@ -18,6 +19,10 @@ const int kataPerHalaman = 7;
 int halaman = 0;
 
 void file(){
+  menuCount = getDeretCount();
+  if (menuCount < 1) menuCount = 1;
+  selectedIndex = 0;
+  page = 0;
   displaymenu = 1;
   posisi = 4;
   displayMenu();
@@ -40,7 +45,8 @@ void displayMenu() {
             } else {
                 canvas.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
             }
-            canvas.print(menuItems[index]);
+            snprintf(menuItemBuffer, sizeof(menuItemBuffer), "DERET %d", index + 1);
+            canvas.print(menuItemBuffer);
             posisi = 4;
         }
     } 
