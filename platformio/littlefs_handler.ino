@@ -115,14 +115,21 @@ void deleteAllDeretFiles() {
   Serial.println("[LFS-DEL] Deleting ALL deret files...");
 
   int deleted = 0;
-  for (int i = 1; i <= 50; i++) { // Support hingga 50 slot
-    String filename = "/lirik/deret_" + String(i) + ".json";
-    if (LittleFS.exists(filename)) {
-      LittleFS.remove(filename);
-      Serial.print("[LFS-DEL]   Deleted: ");
-      Serial.println(filename);
-      deleted++;
-    }
+  File root = LittleFS.open("/lirik");
+  if (root && root.isDirectory()) {
+      File file = root.openNextFile();
+      while (file) {
+          String name = String(file.name());
+          if (name.indexOf("deret_") != -1 && name.indexOf(".json") != -1) {
+              String path = name;
+              if (!path.startsWith("/")) path = "/lirik/" + path;
+              LittleFS.remove(path);
+              Serial.print("[LFS-DEL]   Deleted: ");
+              Serial.println(path);
+              deleted++;
+          }
+          file = root.openNextFile();
+      }
   }
 
   Serial.print("[LFS-DEL] Total files deleted: ");
@@ -166,11 +173,23 @@ int scanDeretSlots() {
     int maxSlot = 0;
     int fileCount = 0;
 
-    for (int i = 1; i <= 50; i++) {
-        String filename = "/lirik/deret_" + String(i) + ".json";
-        if (LittleFS.exists(filename)) {
-            maxSlot = i;
-            fileCount++;
+    File root = LittleFS.open("/lirik");
+    if (root && root.isDirectory()) {
+        File file = root.openNextFile();
+        while (file) {
+            String name = String(file.name());
+            int start = name.indexOf("deret_");
+            int end = name.indexOf(".json");
+            
+            if (start != -1 && end != -1 && end > start) {
+                String numStr = name.substring(start + 6, end);
+                int slot = numStr.toInt();
+                if (slot > 0) {
+                    if (slot > maxSlot) maxSlot = slot;
+                    fileCount++;
+                }
+            }
+            file = root.openNextFile();
         }
     }
 
@@ -322,15 +341,26 @@ String buildCheckPayload() {
   bool first = true;
   int deretFound = 0;
 
+  bool existsArr[21] = {false};
+  File root = LittleFS.open("/lirik");
+  if (root && root.isDirectory()) {
+      File file = root.openNextFile();
+      while (file) {
+          String name = String(file.name());
+          int start = name.indexOf("deret_");
+          int end = name.indexOf(".json");
+          if (start != -1 && end != -1 && end > start) {
+              int slot = name.substring(start + 6, end).toInt();
+              if (slot >= 1 && slot <= 20) existsArr[slot] = true;
+          }
+          file = root.openNextFile();
+      }
+  }
+
   for (int slot = 1; slot <= 20; slot++) {
+    if (!existsArr[slot]) continue;
+
     String filename = "/lirik/deret_" + String(slot) + ".json";
-
-    if (!LittleFS.exists(filename)) {
-      // Serial.print("[LFS-CHECK] Slot "); Serial.print(slot);
-      // Serial.println(": EMPTY");
-      continue;
-    }
-
     File f = LittleFS.open(filename, "r");
     if (!f) {
       continue;

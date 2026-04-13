@@ -16,6 +16,7 @@ void nextp(){
             if (mode==3) {myDFPlayer.playFolder(3,deret);}
             // listderet() akan mengecek LittleFS terlebih dahulu
             listderet();
+            if (words == NULL) { isPlaying = false; return; }
             stopCounter();    // reset
             startCounter();   // mulai dari awal
             isPlaying=true;}

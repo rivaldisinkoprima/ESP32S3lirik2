@@ -1,8 +1,11 @@
 void readRTC() {
   Wire.beginTransmission(DS3231_ADDRESS);
   Wire.write(0x00);  // Memulai dari register 0x00 (detik)
-  Wire.endTransmission();
-  Wire.requestFrom(DS3231_ADDRESS, 7);
+  byte err = Wire.endTransmission();
+  if (err != 0) return; // I2C error — RTC tidak merespon, skip
+
+  byte received = Wire.requestFrom(DS3231_ADDRESS, 7);
+  if (received != 7) return; // Data tidak lengkap, skip
   
   byte second = bcdToDec(Wire.read() & 0x7F);
   byte minute = bcdToDec(Wire.read());

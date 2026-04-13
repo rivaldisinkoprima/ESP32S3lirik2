@@ -47,7 +47,7 @@ HardwareSerial mySerial1(1);
 #define BATT_X 100
 #define BATT_Y 3
 
-SPIClass spiTFT(HSPI); // Use HSPI bus
+SPIClass spiTFT(FSPI); // FSPI = SPI2 pada ESP32-S3 (HSPI tidak punya default pins di S3!)
 Adafruit_ST7735 tft = Adafruit_ST7735(&spiTFT, TFT_CS, TFT_DC, TFT_RST);
 
 // ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA dipakai!
@@ -273,7 +273,12 @@ void setup() {
     myDFPlayer.stop();
   }
 #else
-  Serial.println(F("[SETUP] DFPlayer SKIPPED (DFPLAYER_ENABLED=0, hardware belum terhubung)"));
+  // ★ KRITIS: HARUS tetap panggil begin() meskipun hardware tidak terhubung!
+  // Tanpa ini, internal pointer _serial di DFPlayer library = NULL.
+  // Setiap panggilan myDFPlayer.stop()/play()/pause() di kode lain
+  // akan memanggil sendStack() → write ke NULL → LoadProhibited crash!
+  myDFPlayer.begin(mySerial1, /*isACK=*/false, /*isListenOnlyMode=*/true);
+  Serial.println(F("[SETUP] DFPlayer: begin() called (stream registered), hardware SKIPPED"));
 #endif
   mySerial1.setTimeout(1000);
   esp_task_wdt_reset(); // ④ Feed WDT setelah DFPlayer selesai
@@ -293,15 +298,8 @@ void setup() {
     // ★ Update flash diagnostics (LittleFS sudah mount)
     totalFlashSize = LittleFS.totalBytes();
     
-    // Debug: show which derets have LittleFS data
-    Serial.println("[SETUP] Checking LittleFS deret availability:");
-    for (int i = 1; i <= activeDaretCount; i++) {
-      Serial.print("[SETUP]   Deret ");
-      Serial.print(i);
-      Serial.print(": ");
-      Serial.println(deretExistsInLittleFS(i) ? "LittleFS ✓"
-                                              : "Empty");
-    }
+    // Debug output diganti untuk menghindari spam LittleFS.exists()
+    Serial.println("[SETUP] Filesystem loaded.");
     
     Serial.println("[SETUP] === STORAGE SUMMARY ===");
     Serial.printf("[SETUP]   Active Derets : %d\n", activeDaretCount);
@@ -517,18 +515,16 @@ void sebelumnya() {
 
 void lirik() {
 
-  if (!running)
-    return; // penting, stop menghentikan counting
+  if (!running || words == NULL) return; // Guard: jangan akses pointer NULL
 
   elapsedTime = millis() - startTime;
 
-  if (currentWord < loadedWordCount) {
-
-    if (elapsedTime >= words[currentWord].time) {
+  // Lakukan pengecekan bounds ganda
+  if (currentWord >= 0 && currentWord < loadedWordCount) {
+    if (words[currentWord].text != NULL && elapsedTime >= words[currentWord].time) {
       tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
       tft.setCursor(10, 85);
       tft.print(words[currentWord].text);
-
       currentWord++;
     }
   }
