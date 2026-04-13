@@ -18,6 +18,7 @@ void begin(){
 
     tft.drawRGBBitmap(0, 0, menu_interface, 128, 156);
     menu(pilihan);
+    tampiljam(); // ★ Tampilkan jam yang sudah direadRTC() ke menu utama
     esp_task_wdt_reset();
     delay(500);
     esp_task_wdt_reset();

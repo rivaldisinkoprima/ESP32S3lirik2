@@ -219,10 +219,10 @@ void setup() {
   tft.setRotation(2);
   pinMode(17, OUTPUT);
   digitalWrite(17, HIGH);
-  delay(200);
+  Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok dengan data line PSRAM Octal!)
+  readRTC(); // ★ Baca jam RTC SEBELUM splash screen agar tampiljam() menampilkan waktu yang benar
   begin();
   esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di begin())
-  Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok dengan data line PSRAM Octal!)
   // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai
   // Pullup
   pinMode(buttonNext, INPUT_PULLUP);
