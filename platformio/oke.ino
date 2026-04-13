@@ -44,6 +44,15 @@ void oke() {
                 digitalWrite(TrigMic, LOW);
                 myDFPlayer.start();
                 listderet();
+                if (words == NULL) {
+                    // Slot kosong — batalkan play, cegah crash
+                    isPlaying = false;
+                    stopCounter();
+                    tft.fillRect(57, 107, 5, 18, ST77XX_BLACK);
+                    tft.fillRect(68, 107, 5, 18, ST77XX_BLACK);
+                    tft.fillTriangle(58, 105, 58, 123, 75, 114, ST77XX_RED);
+                    return;
+                }
                 if (deret == lastDeret) startCounter();
                 else {
                     stopCounter();

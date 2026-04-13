@@ -16,6 +16,7 @@
 #include <BLEServer.h>
 #include <BLE2902.h>
 #include <esp_task_wdt.h>
+#include <esp_gap_ble_api.h>
 #include <Preferences.h>
 
 // ─── NVS Preferences: Menyimpan versi lirik secara permanen ─────────────────
@@ -77,7 +78,15 @@ class MyServerCallbacks: public BLEServerCallbacks {
         Serial.println("[BLE] ========================================");
         Serial.println("[BLE] Client DISCONNECTED");
         Serial.println("[BLE] ========================================");
-        BLEDevice::startAdvertising();
+        // Restart advertising pakai raw ESP-IDF API (bypass crash-prone wrapper)
+        esp_ble_adv_params_t adv_params = {};
+        adv_params.adv_int_min = 0x20;
+        adv_params.adv_int_max = 0x40;
+        adv_params.adv_type = ADV_TYPE_IND;
+        adv_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
+        adv_params.channel_map = ADV_CHNL_ALL;
+        adv_params.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
+        esp_ble_gap_start_advertising(&adv_params);
         Serial.println("[BLE] Advertising restarted, waiting for new connection...");
     }
 };
@@ -174,12 +183,38 @@ void initBLE() {
     pService->start();
     Serial.println("[BLE]   Service started");
     
-    BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(BLEUUID(LIRIK_SERVICE_UUID));
-    pAdvertising->setScanResponse(false);
-    BLEDevice::startAdvertising();
+    // ★ BYPASS BLEAdvertising wrapper — langsung pakai ESP-IDF raw API
+    //   Wrapper Arduino BLE rentan crash (NULL pointer di handleGAPEvent)
+    //   karena heap corruption setelah LittleFS scan
+    esp_ble_adv_data_t adv_data = {};
+    adv_data.set_scan_rsp = false;
+    adv_data.include_name = true;
+    adv_data.include_txpower = false;
+    adv_data.min_interval = 0x20;   // 20ms
+    adv_data.max_interval = 0x40;   // 40ms
+    adv_data.flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
     
-    Serial.println("[BLE]   Advertising started");
+    esp_err_t ret = esp_ble_gap_config_adv_data(&adv_data);
+    if (ret) {
+        Serial.printf("[BLE]   WARNING: adv_data config failed: %d\n", ret);
+    }
+    
+    esp_ble_adv_params_t adv_params = {};
+    adv_params.adv_int_min = 0x20;
+    adv_params.adv_int_max = 0x40;
+    adv_params.adv_type = ADV_TYPE_IND;
+    adv_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
+    adv_params.channel_map = ADV_CHNL_ALL;
+    adv_params.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
+    
+    delay(50); // Beri waktu BLE stack siap
+    
+    ret = esp_ble_gap_start_advertising(&adv_params);
+    if (ret) {
+        Serial.printf("[BLE]   WARNING: start_advertising failed: %d\n", ret);
+    } else {
+        Serial.println("[BLE]   Advertising started (ESP-IDF raw API)");
+    }
     
     // Register task ke watchdog agar tidak trigger
     esp_task_wdt_add(NULL);
@@ -224,6 +259,23 @@ void parseBlePayload(const String& payload) {
         Serial.println(newVer);
         notifyStatus("ACK_VER");
         return; // Selesai
+    }
+    // ─── Perintah Memory Report (Non-JSON) ───────────────────────────────
+    if (payload.startsWith("@GET_MEMORY")) {
+        Serial.println("[BLE-CMD] GET_MEMORY request received");
+        extern size_t totalPsramSize;
+        extern size_t safePsramThreshold;
+        extern int activeDaretCount;
+        
+        String memReport = String("{\"psram_total\":") + String((unsigned long)totalPsramSize) +
+                           ",\"psram_free\":" + String((unsigned long)ESP.getFreePsram()) +
+                           ",\"psram_gate\":" + String((unsigned long)safePsramThreshold) +
+                           ",\"heap_free\":" + String((unsigned long)ESP.getFreeHeap()) +
+                           ",\"flash_total\":" + String((unsigned long)LittleFS.totalBytes()) +
+                           ",\"flash_free\":" + String((unsigned long)(LittleFS.totalBytes() - LittleFS.usedBytes())) +
+                           ",\"slots\":" + String(activeDaretCount) + "}";
+        notifyStatus(memReport.c_str());
+        return;
     }
     // ────────────────────────────────────────────────────────────────────
 
@@ -305,12 +357,26 @@ void parseBlePayload(const String& payload) {
     tft.print("SYNC SUCCESS!");
     vTaskDelay(3000 / portTICK_PERIOD_MS);
     
+    // ★ Re-scan slot setelah sinkronisasi selesai
+    extern int activeDaretCount;
+    extern int scanDeretSlots();
+    activeDaretCount = scanDeretSlots();
+    Serial.printf("[BLE-SYNC] Updated activeDaretCount: %d\n", activeDaretCount);
+    
     hideSyncingUI();
     listLirikFiles();
     isSyncing = false; // Lepas kunci layar: Kembalikan akses ke Core 1
 }
 
 bool processDeret(JsonObject deret) {
+    // ★ Memory Safety Gate sebelum proses write
+    extern bool checkMemorySafety();
+    if (!checkMemorySafety()) {
+        Serial.println("[BLE-PROC] BLOCKED: Memory full, skipping slot!");
+        notifyStatus("ERR:MEM_FULL");
+        return false;
+    }
+    
     int slot = deret["d"];
     String name = deret["name"].as<String>();
     JsonArray wordsArr = deret["v"].as<JsonArray>(); // Flutter pakai key "v" untuk array lirik
@@ -355,6 +421,12 @@ void factoryReset() {
     Serial.println("[BLE-RESET] ========================================");
     Serial.println("[BLE-RESET] Performing FACTORY RESET...");
     deleteAllDeretFiles();
+    
+    // ★ Reset dynamic slot count ke default
+    extern int activeDaretCount;
+    activeDaretCount = 10;
+    
+    Serial.println("[BLE-RESET] activeDaretCount reset to 10");
     Serial.println("[BLE-RESET] Factory reset COMPLETE");
     Serial.println("[BLE-RESET] ========================================");
 }
