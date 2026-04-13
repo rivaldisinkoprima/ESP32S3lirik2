@@ -40,6 +40,57 @@ class DeretCheckResult {
   }
 }
 
+/// Model Fase 8: Informasi memori perangkat ESP32 via BLE
+class DeviceMemoryInfo {
+  final int psramTotal;
+  final int psramFree;
+  final int psramGate;
+  final int heapFree;
+  final int flashTotal;
+  final int flashFree;
+  final int slots;
+
+  double get psramUsagePercent =>
+      psramTotal > 0 ? ((psramTotal - psramFree) / psramTotal * 100) : 0;
+
+  double get flashUsagePercent =>
+      flashTotal > 0 ? ((flashTotal - flashFree) / flashTotal * 100) : 0;
+
+  String get psramTotalFormatted => _formatBytes(psramTotal);
+  String get psramFreeFormatted => _formatBytes(psramFree);
+  String get flashTotalFormatted => _formatBytes(flashTotal);
+  String get flashFreeFormatted => _formatBytes(flashFree);
+  String get heapFreeFormatted => _formatBytes(heapFree);
+
+  static String _formatBytes(int bytes) {
+    if (bytes >= 1048576) return '${(bytes / 1048576).toStringAsFixed(1)} MB';
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '$bytes B';
+  }
+
+  DeviceMemoryInfo({
+    required this.psramTotal,
+    required this.psramFree,
+    required this.psramGate,
+    required this.heapFree,
+    required this.flashTotal,
+    required this.flashFree,
+    required this.slots,
+  });
+
+  factory DeviceMemoryInfo.fromJson(Map<String, dynamic> json) {
+    return DeviceMemoryInfo(
+      psramTotal: json['psram_total'] as int? ?? 0,
+      psramFree: json['psram_free'] as int? ?? 0,
+      psramGate: json['psram_gate'] as int? ?? 0,
+      heapFree: json['heap_free'] as int? ?? 0,
+      flashTotal: json['flash_total'] as int? ?? 0,
+      flashFree: json['flash_free'] as int? ?? 0,
+      slots: json['slots'] as int? ?? 10,
+    );
+  }
+}
+
 class BleProvider with ChangeNotifier {
   static const String lirikServiceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
   static const String lirikCharacteristicUuid =
@@ -61,6 +112,10 @@ class BleProvider with ChangeNotifier {
   // --- State untuk Hardware Version (NVS) ---
   String? _hardwareVersion; // null = belum pernah terhubung/belum dibaca
 
+  // --- State untuk Device Memory (Fase 8) ---
+  DeviceMemoryInfo? _deviceMemory;
+  bool _isLoadingMemory = false;
+
   List<ScanResult> get scanResults => _scanResults;
   bool get isScanning => _isScanning;
   BluetoothDevice? get connectedDevice => _connectedDevice;
@@ -69,6 +124,8 @@ class BleProvider with ChangeNotifier {
   bool get isChecking => _isChecking;
   List<DeretCheckResult>? get checkResults => _checkResults;
   String? get hardwareVersion => _hardwareVersion;
+  DeviceMemoryInfo? get deviceMemory => _deviceMemory;
+  bool get isLoadingMemory => _isLoadingMemory;
 
   BleProvider() {
     FlutterBluePlus.scanResults.listen((results) {
@@ -157,6 +214,19 @@ class BleProvider with ChangeNotifier {
         _parseCheckPayload(payload);
       }
     } else {
+      // Cek apakah ini respons memory report (JSON dengan psram_total)
+      if (data.startsWith('{') && data.contains('psram_total')) {
+        try {
+          final json = jsonDecode(data) as Map<String, dynamic>;
+          _deviceMemory = DeviceMemoryInfo.fromJson(json);
+          _isLoadingMemory = false;
+          debugPrint('[BLE-MEM] Memory info received: PSRAM ${_deviceMemory!.psramUsagePercent.toStringAsFixed(1)}% used, ${_deviceMemory!.slots} slots');
+          notifyListeners();
+          return;
+        } catch (e) {
+          debugPrint('[BLE-MEM] Error parsing memory JSON: $e');
+        }
+      }
       // Mode normal: status feedback singkat (OK:10/10, ERR:..., ACK_VER, atau versi)
       _lastStatus = data;
       debugPrint('[BLE-FEEDBACK] Status dari ESP32: $_lastStatus');
@@ -281,6 +351,8 @@ class BleProvider with ChangeNotifier {
     _checkBuffer = "";
     _checkResults = null;
     _hardwareVersion = null; // Reset saat disconnect
+    _deviceMemory = null;
+    _isLoadingMemory = false;
     notifyListeners();
   }
 
@@ -337,5 +409,31 @@ class BleProvider with ChangeNotifier {
     }
     debugPrint('[BLE-VER] Timeout waiting for ACK_VER');
     return false;
+  }
+
+  // ─── Fase 8: Device Memory Report ──────────────────────────────────────
+
+  /// Meminta laporan memori dari ESP32 via BLE command @GET_MEMORY.
+  /// Hasilnya akan masuk via _handleIncomingNotify dan di-parse ke DeviceMemoryInfo.
+  Future<void> getDeviceMemory() async {
+    if (_lirikCharacteristic == null) return;
+
+    _isLoadingMemory = true;
+    _deviceMemory = null;
+    notifyListeners();
+
+    debugPrint('[BLE-MEM] Sending @GET_MEMORY...');
+    final cmd = '@GET_MEMORY[EOF]';
+    final bytes = utf8.encode(cmd);
+    await _lirikCharacteristic!.write(bytes, withoutResponse: false);
+
+    // Timeout 5 detik
+    Future.delayed(const Duration(seconds: 5), () {
+      if (_isLoadingMemory && _deviceMemory == null) {
+        _isLoadingMemory = false;
+        debugPrint('[BLE-MEM] Timeout waiting for memory report');
+        notifyListeners();
+      }
+    });
   }
 }

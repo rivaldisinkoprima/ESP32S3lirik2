@@ -1,7 +1,7 @@
 // Deret Model
 //
 // Struktur data untuk satu deret (slot) lirik:
-// - slotNumber: Nomor deret (1-10)
+// - slotNumber: Nomor deret (1-50, dinamis)
 // - audioFilePath: Path file MP3
 // - words: List kata dengan timestamp
 // - isSynced: Status sync ke ESP32
