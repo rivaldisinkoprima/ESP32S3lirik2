@@ -35,6 +35,7 @@ HardwareSerial mySerial1(1);
 #define TFT_DC 11
 #define TFT_MOSI 10
 #define TFT_SCK 15
+#define TFT_MISO -1 
 
 #define PIN_CHRG 45
 #define PIN_STBY 48
@@ -46,12 +47,14 @@ HardwareSerial mySerial1(1);
 #define BATT_X 100
 #define BATT_Y 3
 
-SPIClass spiTFT(HSPI); // Use default VSPI
+SPIClass spiTFT(HSPI); // Use HSPI bus
 Adafruit_ST7735 tft = Adafruit_ST7735(&spiTFT, TFT_CS, TFT_DC, TFT_RST);
 
-static const uint8_t PIN_MP3_TX = 36; // D7
-static const uint8_t PIN_MP3_RX = 35; // D6
-SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX);
+// ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA dipakai!
+// Pin DFPlayer dipindah ke GPIO yang aman (di luar range 26-37)
+static const uint8_t PIN_MP3_TX = 16; // TX ke DFPlayer RX (GPIO aman)
+static const uint8_t PIN_MP3_RX = 7;  // RX dari DFPlayer TX (GPIO aman)
+// SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX); // ← DINONAKTIFKAN: tidak dipakai
 
 DFRobotDFPlayerMini myDFPlayer;
 
@@ -98,6 +101,16 @@ enum ChargerState { NOT_CHARGING, CHARGING, FULL };
 
 ChargerState lastState = NOT_CHARGING;
 ChargerState currentState;
+
+// === Dynamic Memory Profile (ADAPTIF — dihitung dari PSRAM fisik saat boot) ===
+size_t totalPsramSize = 0;           // Diisi saat boot dari ESP.getPsramSize()
+size_t safePsramThreshold = 0;       // 10% dari totalPsramSize (cadangan minimum)
+size_t totalFlashSize = 0;           // LittleFS total capacity
+const size_t SAFE_FLASH_MIN = 50 * 1024; // Minimal 50KB sisa flash
+const size_t SAFE_HEAP_MIN = 32768;  // Minimal 32KB internal heap
+
+// === Dynamic Slot Management ===
+int activeDaretCount = 10;           // Default fallback (di-update saat boot & sync)
 
 unsigned long lastRTC = 0;
 int lastBatteryUpdate = 0;
@@ -159,9 +172,40 @@ void notifyStatus(const char *status);
 bool saveDeretToLittleFS(int slot, const String &name, const String &jsonWords);
 void sendCheckPayload();
 String buildCheckPayload();
+void initMemoryProfile();
+int scanDeretSlots();
+bool checkMemorySafety();
 // ---------------------------------------------
 
+/**
+ * Baca kapasitas PSRAM/Heap dari hardware saat boot.
+ * Threshold 90% dihitung dinamis — adaptif terhadap upgrade HW.
+ * 
+ * Contoh:
+ *   PSRAM 8MB  → cadangan min 800KB (threshold = 7.2MB)
+ *   PSRAM 16MB → cadangan min 1.6MB (threshold = 14.4MB)
+ */
+void initMemoryProfile() {
+    totalPsramSize = ESP.getPsramSize();
+    safePsramThreshold = totalPsramSize / 10;  // 10% dari total = batas sisa minimum
+    
+    Serial.println("\n========= MEMORY PROFILE =========");
+    Serial.printf("  Heap Total  : %u bytes\n", ESP.getHeapSize());
+    Serial.printf("  Heap Free   : %u bytes\n", ESP.getFreeHeap());
+    Serial.printf("  PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize, totalPsramSize / 1048576.0);
+    Serial.printf("  PSRAM Free  : %u bytes\n", ESP.getFreePsram());
+    Serial.printf("  PSRAM Gate  : %u bytes (10%% reserved)\n", safePsramThreshold);
+    Serial.println("==================================");
+}
+
+
 void setup() {
+  Serial.begin(115200);
+  delay(1000); // Beri waktu serial stabil
+  esp_task_wdt_reset(); // ① Feed WDT setelah delay awal
+  
+  initMemoryProfile();  // ★ PERTAMA: baca kapasitas memori hardware
+
   pinMode(TrigMic, OUTPUT);
   pinMode(TrigRlyDF, OUTPUT);
   digitalWrite(TrigMic, LOW);
@@ -170,15 +214,15 @@ void setup() {
   pinMode(TrigPower, OUTPUT);
   digitalWrite(TrigPower, LOW);
   pinMode(14, INPUT);
-  Serial.begin(9600);
-  spiTFT.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);
+  spiTFT.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(2);
   pinMode(17, OUTPUT);
   digitalWrite(17, HIGH);
   delay(200);
   begin();
-  Wire.begin(37, 38);
+  esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di begin())
+  Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok dengan data line PSRAM Octal!)
   // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai
   // Pullup
   pinMode(buttonNext, INPUT_PULLUP);
@@ -211,25 +255,28 @@ void setup() {
   // drawBatteryScreen(currentState);
   // lastState = currentState;
 
-  mySerial1.begin(9600, SERIAL_8N1, 36, 35); // RX=1, TX=2 (Adjust as needed)
-  delay(1000);
+  mySerial1.begin(9600, SERIAL_8N1, PIN_MP3_RX, PIN_MP3_TX); // RX=GPIO7, TX=GPIO16 (aman, di luar range PSRAM 26-37)
+  mySerial1.setTimeout(1000);
+  delay(500);
+  esp_task_wdt_reset(); // ③ Feed WDT sebelum DFPlayer
   Serial.println("Initializing DFPlayer ...");
 
-  if (!myDFPlayer.begin(mySerial1, true, true)) {
+#if DFPLAYER_ENABLED
+  if (!myDFPlayer.begin(mySerial1, /*isACK=*/false, /*isListenOnlyMode=*/true)) {
     Serial.println(F("DFPlayer tidak ditemukan (Skip untuk testing)"));
-    // while (true) ; // Disabled untuk testing tanpa hardware
   } else {
-    // ----Set volume----
-    myDFPlayer.volume(loud); // Set volume value (0~30).
-
-    //----Set different EQ----
+    myDFPlayer.volume(loud);
     myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
-
     myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
     myDFPlayer.playFolder(1, 1);
     delay(200);
     myDFPlayer.stop();
   }
+#else
+  Serial.println(F("[SETUP] DFPlayer SKIPPED (DFPLAYER_ENABLED=0, hardware belum terhubung)"));
+#endif
+  mySerial1.setTimeout(1000);
+  esp_task_wdt_reset(); // ④ Feed WDT setelah DFPlayer selesai
   tft.setFont(&FreeSans9pt7b); // Atur font
   tft.setTextSize(1);
   readRTC();
@@ -239,29 +286,45 @@ void setup() {
   // Initialize LittleFS
   if (initLittleFS()) {
     Serial.println("[SETUP] LittleFS ready for lyrics storage");
+    
+    // ★ Dynamic slot count dari LittleFS
+    activeDaretCount = scanDeretSlots();
+    
+    // ★ Update flash diagnostics (LittleFS sudah mount)
+    totalFlashSize = LittleFS.totalBytes();
+    
     // Debug: show which derets have LittleFS data
     Serial.println("[SETUP] Checking LittleFS deret availability:");
-    for (int i = 1; i <= 10; i++) {
+    for (int i = 1; i <= activeDaretCount; i++) {
       Serial.print("[SETUP]   Deret ");
       Serial.print(i);
       Serial.print(": ");
       Serial.println(deretExistsInLittleFS(i) ? "LittleFS ✓"
-                                              : "Hardcoded (default)");
+                                              : "Empty");
     }
+    
+    Serial.println("[SETUP] === STORAGE SUMMARY ===");
+    Serial.printf("[SETUP]   Active Derets : %d\n", activeDaretCount);
+    Serial.printf("[SETUP]   Flash Total   : %u bytes\n", totalFlashSize);
+    Serial.printf("[SETUP]   Flash Used    : %u bytes\n", LittleFS.usedBytes());
+    Serial.printf("[SETUP]   Flash Free    : %u bytes\n", totalFlashSize - LittleFS.usedBytes());
+    Serial.println("[SETUP] =============================");
   } else {
     Serial.println(
         "[SETUP] WARNING: LittleFS failed, using hardcoded data only");
   }
 
+  esp_task_wdt_reset(); // ⑤ Feed WDT sebelum BLE init
   // Initialize BLE Server
   initBLE();
 
   Serial.println("[SETUP] ========================================");
   Serial.println("[SETUP] System initialization COMPLETE");
-  Serial.print("[SETUP] Free heap: ");
-  Serial.print(ESP.getFreeHeap());
-  Serial.println(" bytes");
+  Serial.printf("[SETUP]   Free Heap : %u bytes\n", ESP.getFreeHeap());
+  Serial.printf("[SETUP]   Free PSRAM: %u bytes\n", ESP.getFreePsram());
+  Serial.printf("[SETUP]   Slots     : %d\n", activeDaretCount);
   Serial.println("[SETUP] ========================================");
+
 }
 
 void menu(int pilihan) {
@@ -405,7 +468,7 @@ void selanjutnya() {
   tft.fillRect(70, 15, 70, 25, ST77XX_BLACK);
   tft.setCursor(73, 35);
   deret++;
-  if (deret >= 11)
+  if (deret > activeDaretCount)
     deret = 1;
   tft.setTextSize(1);
   tft.print(deret);
@@ -434,7 +497,7 @@ void sebelumnya() {
   tft.setCursor(73, 35);
   deret--;
   if (deret <= 0)
-    deret = 10;
+    deret = activeDaretCount;
   tft.setTextSize(1);
   tft.print(deret);
   tft.fillTriangle(38, 105, 38, 123, 21, 114, ST77XX_WHITE);
@@ -573,9 +636,9 @@ void showSyncingUI(int slot, int total) {
   tft.print("Saving Slot: ");
   tft.print(slot);
 
-  // Progress Bar
+  // Progress Bar (dinamis berdasarkan total slot yang di-sync)
   tft.drawRect(15, 95, 98, 10, ST77XX_WHITE);
-  int progressW = (slot * 94) / 10; // Asumsi 10 slot total
+  int progressW = (slot * 94) / max(total, 1);
   tft.fillRect(17, 97, progressW, 6, ST77XX_CYAN);
 }
 

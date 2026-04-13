@@ -115,7 +115,7 @@ void deleteAllDeretFiles() {
   Serial.println("[LFS-DEL] Deleting ALL deret files...");
 
   int deleted = 0;
-  for (int i = 1; i <= 20; i++) { // Support up to 20 derets
+  for (int i = 1; i <= 50; i++) { // Support hingga 50 slot
     String filename = "/lirik/deret_" + String(i) + ".json";
     if (LittleFS.exists(filename)) {
       LittleFS.remove(filename);
@@ -154,9 +154,87 @@ int getDeretCount() {
   return count;
 }
 
+/**
+ * Scan LittleFS untuk menemukan slot deret tertinggi yang terisi.
+ * Return: nomor slot tertinggi (bukan jumlah total file).
+ *
+ * Contoh:
+ *   File: deret_3.json, deret_7.json → return 7
+ *   File: kosong                      → return 10 (default minimum)
+ */
+int scanDeretSlots() {
+    int maxSlot = 0;
+    int fileCount = 0;
+
+    for (int i = 1; i <= 50; i++) {
+        String filename = "/lirik/deret_" + String(i) + ".json";
+        if (LittleFS.exists(filename)) {
+            maxSlot = i;
+            fileCount++;
+        }
+    }
+
+    // Minimum 10 agar navigasi UI tetap konsisten saat LittleFS kosong
+    if (maxSlot < 10) maxSlot = 10;
+
+    Serial.printf("[LFS-SCAN] Files found: %d, Highest slot: %d\n", fileCount, maxSlot);
+    return maxSlot;
+}
+
+/**
+ * Cek apakah memori masih aman untuk operasi berat (load deret, parse JSON).
+ *
+ * Threshold dihitung DINAMIS dari initMemoryProfile():
+ *   - safePsramThreshold = 10% dari PSRAM fisik (dicadangkan)
+ *   - SAFE_HEAP_MIN = 32KB internal heap minimum
+ *   - SAFE_FLASH_MIN = 50KB flash minimum
+ *
+ * Jika PSRAM 8MB  → cadangan 800KB, boleh pakai 7.2MB
+ * Jika PSRAM 16MB → cadangan 1.6MB, boleh pakai 14.4MB
+ *
+ * Returns: true = aman, false = berbahaya (jangan alokasi!)
+ */
+bool checkMemorySafety() {
+    extern size_t totalPsramSize;
+    extern size_t safePsramThreshold;
+    extern const size_t SAFE_HEAP_MIN;
+    extern const size_t SAFE_FLASH_MIN;
+
+    size_t freePsram = ESP.getFreePsram();
+    size_t freeHeap = ESP.getFreeHeap();
+    size_t freeFlash = LittleFS.totalBytes() - LittleFS.usedBytes();
+
+    Serial.println("[MEM-CHECK] === Safety Gate ===");
+    Serial.printf("[MEM-CHECK]   PSRAM Free : %u / Min Reserved: %u\n", freePsram, safePsramThreshold);
+    Serial.printf("[MEM-CHECK]   Heap Free  : %u / Min: %u\n", freeHeap, SAFE_HEAP_MIN);
+    Serial.printf("[MEM-CHECK]   Flash Free : %u / Min: %u\n", freeFlash, SAFE_FLASH_MIN);
+
+    if (freePsram < safePsramThreshold) {
+        Serial.println("[MEM-CHECK] BLOCKED: PSRAM usage > 90%!");
+        return false;
+    }
+    if (freeHeap < SAFE_HEAP_MIN) {
+        Serial.println("[MEM-CHECK] BLOCKED: Internal heap critical!");
+        return false;
+    }
+    if (freeFlash < SAFE_FLASH_MIN) {
+        Serial.println("[MEM-CHECK] BLOCKED: Flash storage almost full!");
+        return false;
+    }
+
+    Serial.println("[MEM-CHECK] Memory OK.");
+    return true;
+}
+
 // Load deret dari LittleFS ke memory
 // Returns: pointer ke array Word atau NULL jika gagal
 Word *loadDeretFromLittleFS(int slot) {
+  // ★ Memory Safety Gate — cek sebelum alokasi berat
+  if (!checkMemorySafety()) {
+    Serial.println("[LFS-LOAD] BLOCKED: Insufficient memory!");
+    return NULL;
+  }
+
   String content = readDeretFile(slot);
 
   if (content.length() == 0) {
