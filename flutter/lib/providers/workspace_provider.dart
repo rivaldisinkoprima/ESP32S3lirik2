@@ -80,6 +80,17 @@ class WorkspaceProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Membuat deret pada slot nomor tertentu (dipakai saat bulk import auto-create).
+  /// Tidak melakukan apa-apa jika slot sudah ada.
+  void addDeretWithSlot(int slot) {
+    if (_derets.any((d) => d.slotNumber == slot)) return; // Sudah ada, skip
+    final newDeret = Deret(slotNumber: slot);
+    _derets.add(newDeret);
+    _derets.sort((a, b) => a.slotNumber.compareTo(b.slotNumber));
+    _saveDerets(); // ★ Persist
+    notifyListeners();
+  }
+
   void removeDeret(int slotNumber) {
     int index = _derets.indexWhere((d) => d.slotNumber == slotNumber);
     if (index != -1) {
