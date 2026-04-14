@@ -62,8 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['mp3', 'json'],
+      type: FileType.any,
     );
 
     if (result == null || result.files.isEmpty) return;
@@ -103,8 +102,9 @@ class _HomeScreenState extends State<HomeScreen> {
           jsonFile = file;
         }
 
-        if (name.endsWith('.mp3')) {
-          final match = RegExp(r'^(\d{3})\.mp3$').firstMatch(name);
+        if (!name.endsWith('.json')) {
+          // Match any file with numeric name (1-3 digits) + any extension
+          final match = RegExp(r'^(\d{1,3})\.\w+$').firstMatch(name);
           if (match != null) {
             final num = int.parse(match.group(1)!);
             if (num >= 1 && num <= 50) {
