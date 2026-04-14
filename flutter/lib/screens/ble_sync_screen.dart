@@ -718,7 +718,13 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Image.asset('assets/logo1.png'),
+        ),
         title: Text(_l10n?.translate('syncToDevice') ?? 'Sync to Device'),
+        centerTitle: true,
       ),
       body: Column(
         children: [

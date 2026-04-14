@@ -458,7 +458,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Image.asset('assets/logo1.png'),
+        ),
         title: Text(l10n?.translate('appName') ?? 'Lirik Sync'),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.folderOpen),

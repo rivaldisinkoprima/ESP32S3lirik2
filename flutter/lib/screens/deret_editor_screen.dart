@@ -857,6 +857,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         child: Scaffold(
           appBar: AppBar(
             title: Text(_l10n?.translate('editTrack', ['${widget.slotNumber}']) ?? 'Edit Track ${widget.slotNumber}'),
+            centerTitle: true,
             actions: [
               IconButton(
                 icon: const Icon(LucideIcons.check),

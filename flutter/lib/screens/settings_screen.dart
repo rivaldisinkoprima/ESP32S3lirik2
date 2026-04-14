@@ -29,7 +29,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isDefault = offset == _defaultValue;
 
     return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context)?.translate('settingsTitle') ?? 'Settings')),
+      appBar: AppBar(
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Image.asset('assets/logo1.png'),
+        ),
+        title: Text(AppLocalizations.of(context)?.translate('settingsTitle') ?? 'Settings'),
+        centerTitle: true,
+      ),
       body: ListView(
         children: [
           Container(
