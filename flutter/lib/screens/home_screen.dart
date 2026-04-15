@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:audio_waveforms/audio_waveforms.dart';
 import '../providers/workspace_provider.dart';
+import '../models/deret.dart';
 import '../models/word_entry.dart';
 import '../services/spike_detector.dart';
 import '../l10n/app_localizations.dart';
@@ -61,8 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final workspace = Provider.of<WorkspaceProvider>(context, listen: false);
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['mp3', 'json'],
+      type: FileType.any,
     );
 
     if (result == null || result.files.isEmpty) return;
@@ -102,11 +102,12 @@ class _HomeScreenState extends State<HomeScreen> {
           jsonFile = file;
         }
 
-        if (name.endsWith('.mp3')) {
-          final match = RegExp(r'^(\d{3})\.mp3$').firstMatch(name);
+        if (!name.endsWith('.json')) {
+          // Match any file with numeric name (1-3 digits) + any extension
+          final match = RegExp(r'^(\d{1,3})\.\w+$').firstMatch(name);
           if (match != null) {
             final num = int.parse(match.group(1)!);
-            if (num >= 1 && num <= 10) {
+            if (num >= 1 && num <= 50) {
               audioMap[num] = file.path!;
             }
           }
@@ -141,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
               final key = entry.key.toLowerCase();
               if (key.startsWith('deret_') && entry.value is List) {
                 final slotNum = int.tryParse(key.replaceAll('deret_', ''));
-                if (slotNum != null && slotNum >= 1 && slotNum <= 10) {
+                if (slotNum != null && slotNum >= 1 && slotNum <= 50) {
                   wordData['deret_$slotNum'] = (entry.value as List)
                       .map((e) => e.toString())
                       .toList();
@@ -157,36 +158,32 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-
+      // Hitung preview: hanya baca audioMap & wordData, JANGAN ubah workspace di sini
+      // Auto-create dan assign sepenuhnya dilakukan di _applyImport
       int audioImported = 0;
       int wordsImported = 0;
       final importedDerets = <int>[];
 
-      for (final deret in workspace.derets) {
-        final slot = deret.slotNumber;
-        bool changed = false;
+      // Kumpulkan semua slot dari file yang dipilih
+      final allImportSlots = <int>{
+        ...audioMap.keys,
+        ...wordData.keys
+            .map((k) => int.tryParse(k.replaceAll('deret_', '')) ?? 0)
+            .where((n) => n > 0),
+      };
 
+      for (final slot in allImportSlots.toList()..sort()) {
+        bool changed = false;
         if (audioMap.containsKey(slot)) {
-          deret.audioFilePath = audioMap[slot];
           audioImported++;
           changed = true;
         }
-
         final wordKey = 'deret_$slot';
         if (wordData.containsKey(wordKey)) {
-          final words = wordData[wordKey]!;
-          deret.words.clear();
-          for (final word in words) {
-            final truncated = word.length > 8 ? word.substring(0, 8) : word;
-            deret.words.add(WordEntry(timestampMs: 0, word: truncated));
-          }
-          wordsImported += words.length;
+          wordsImported += wordData[wordKey]!.length;
           changed = true;
         }
-
-        if (changed) {
-          importedDerets.add(slot);
-        }
+        if (changed) importedDerets.add(slot);
       }
 
       if (!mounted) return;
@@ -458,7 +455,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Image.asset('assets/logo1.png'),
+        ),
         title: Text(l10n?.translate('appName') ?? 'Lirik Sync'),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.folderOpen),
@@ -575,55 +578,85 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: workspace.derets.length,
                     itemBuilder: (context, index) {
                       final deret = workspace.derets[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 1,
-                        shadowColor: Colors.black.withValues(alpha: 0.05),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  DeretEditorScreen(slotNumber: deret.slotNumber),
-                            ),
+                      return Dismissible(
+                        key: ValueKey(deret.slotNumber.toString()),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.error,
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-                            child: ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: deret.isSynced
-                                      ? Theme.of(context).colorScheme.secondaryContainer
-                                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                  shape: BoxShape.circle,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: Icon(LucideIcons.trash2, color: Theme.of(context).colorScheme.onError),
+                        ),
+                        onDismissed: (direction) {
+                          final slotNum = deret.slotNumber;
+                          workspace.removeDeret(slotNum);
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(l10n?.translate('trackDeleted', ['$slotNum']) ?? 'Track $slotNum deleted'),
+                              action: SnackBarAction(
+                                label: l10n?.translate('undo') ?? 'UNDO',
+                                onPressed: () {
+                                  workspace.restoreLastDeleted();
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 1,
+                          shadowColor: Colors.black.withValues(alpha: 0.05),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    DeretEditorScreen(slotNumber: deret.slotNumber),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: deret.isSynced
+                                        ? Theme.of(context).colorScheme.secondaryContainer
+                                        : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    deret.isSynced
+                                        ? LucideIcons.checkCircle
+                                        : LucideIcons.music,
+                                    color: deret.isSynced
+                                        ? Theme.of(context).colorScheme.onSecondaryContainer
+                                        : Theme.of(context).colorScheme.outline,
+                                    size: 24,
+                                  ),
                                 ),
-                                child: Icon(
+                                title: Text(
+                                  deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: Text(
                                   deret.isSynced
-                                      ? LucideIcons.checkCircle
-                                      : LucideIcons.music,
-                                  color: deret.isSynced
-                                      ? Theme.of(context).colorScheme.onSecondaryContainer
-                                      : Theme.of(context).colorScheme.outline,
-                                  size: 24,
+                                      ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
+                                      : l10n?.translate('notSynced') ?? 'Not synced',
+                                  style: TextStyle(
+                                    color: deret.isSynced ? Colors.green.shade600 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                    fontWeight: deret.isSynced ? FontWeight.w500 : FontWeight.normal,
+                                  ),
                                 ),
+                                trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.outlineVariant),
                               ),
-                              title: Text(
-                                deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text(
-                                deret.isSynced
-                                    ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
-                                    : l10n?.translate('notSynced') ?? 'Not synced',
-                                style: TextStyle(
-                                  color: deret.isSynced ? Colors.green.shade600 : Theme.of(context).colorScheme.onSurfaceVariant,
-                                  fontWeight: deret.isSynced ? FontWeight.w500 : FontWeight.normal,
-                                ),
-                              ),
-                              trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.outlineVariant),
                             ),
                           ),
                         ),
@@ -719,14 +752,38 @@ class _HomeScreenState extends State<HomeScreen> {
     int audioImported = 0;
     int wordsImported = 0;
 
-    for (final deret in workspace.derets) {
-      final slot = deret.slotNumber;
+    // Step 1: Kumpulkan semua slot dari file import
+    final allSlots = <int>{
+      ...audioMap.keys,
+      ...wordData.keys
+          .map((k) => int.tryParse(k.replaceAll('deret_', '')) ?? 0)
+          .where((n) => n > 0),
+    };
+
+    // Step 2: Auto-create slot yang belum ada (satu per satu, synchronous)
+    for (final slot in allSlots.toList()..sort()) {
+      if (!workspace.derets.any((d) => d.slotNumber == slot)) {
+        workspace.addDeretWithSlot(slot);
+      }
+    }
+
+    // Step 3: Ambil snapshot list SETELAH semua slot terbuat
+    final currentDerets = List<Deret>.from(workspace.derets);
+
+    // Step 4: Assign audio & kata ke setiap deret berdasarkan slot
+    for (final slot in allSlots.toList()..sort()) {
+      final deret = currentDerets.firstWhere(
+        (d) => d.slotNumber == slot,
+        orElse: () => Deret(slotNumber: slot),
+      );
+
       bool changed = false;
 
       if (audioMap.containsKey(slot)) {
         deret.audioFilePath = audioMap[slot];
         audioImported++;
         changed = true;
+        debugPrint('[IMPORT] Slot $slot ← audio: ${audioMap[slot]}');
       }
 
       final wordKey = 'deret_$slot';
@@ -741,6 +798,7 @@ class _HomeScreenState extends State<HomeScreen> {
         changed = true;
       }
 
+      // Step 5: Simpan ke workspace (triggers _saveDerets)
       if (changed) {
         workspace.updateDeret(deret);
       }

@@ -111,23 +111,37 @@ class LyricUpdateProvider extends ChangeNotifier {
     }
     _downloadedDataJson = dataJson;
 
-    // Step 2: Download audio per deret (001.mp3 - 010.mp3)
+    // Step 2: Download audio per deret (1 - 50)
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final audioDir = Directory('${appDir.path}/cloud_audio');
       if (!await audioDir.exists()) await audioDir.create(recursive: true);
 
-      for (int i = 1; i <= 10; i++) {
-        final url = LyricUpdateService.getAudioUrl(i);
-        final bytes = await _service.downloadAudio(url);
-        if (bytes != null && bytes.isNotEmpty) {
-          final fileName = i.toString().padLeft(3, '0');
-          final localFile = File('${audioDir.path}/$fileName.mp3');
-          await localFile.writeAsBytes(bytes);
-          _downloadedAudioPaths[i] = localFile.path;
-          debugPrint('[CloudUpdate] Audio deret $i saved → ${localFile.path}');
-        } else {
-          debugPrint('[CloudUpdate] Audio deret $i tidak ditemukan di server, dilewati.');
+      const extensions = ['mp3', 'wav', 'm4a', 'ogg', 'aac'];
+
+      for (int i = 1; i <= 50; i++) {
+        bool audioFound = false;
+        final fileNameBase = i.toString().padLeft(3, '0');
+
+        for (final ext in extensions) {
+          // Construct URL directly based on baseUrl
+          // Using hardcoded _baseUrl pattern from LyricUpdateService
+          final url = 'https://mrlyotncelnvnyhkhzhz.supabase.co/storage/v1/object/public/update/update/assets/$fileNameBase.$ext';
+          final bytes = await _service.downloadAudio(url);
+          
+          if (bytes != null && bytes.isNotEmpty) {
+            final localFile = File('${audioDir.path}/$fileNameBase.$ext');
+            await localFile.writeAsBytes(bytes);
+            _downloadedAudioPaths[i] = localFile.path;
+            debugPrint('[CloudUpdate] Audio deret $i saved → ${localFile.path}');
+            audioFound = true;
+            break; // Stop trying extensions if found
+          }
+        }
+        
+        if (!audioFound) {
+          debugPrint('[CloudUpdate] Audio deret $i tidak ditemukan di server. Menghentikan pencarian slot berikutnya.');
+          break; // Berhenti mencari slot selanjutnya jika file lokal tidak ditemukan
         }
       }
     } catch (e) {

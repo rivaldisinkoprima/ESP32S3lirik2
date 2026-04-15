@@ -417,10 +417,23 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
                           fontSize: 20,
                         ),
                       ),
+                      // Hardware Version
+                      if (ble.hardwareVersion != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'v${ble.hardwareVersion}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
+              // ★ Fase 8: Device Memory Card
+              _buildMemoryCard(ble),
               const SizedBox(height: 40),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -543,6 +556,161 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
     );
   }
 
+  /// ★ Fase 8: Widget kartu informasi memori ESP32
+  Widget _buildMemoryCard(BleProvider ble) {
+    final mem = ble.deviceMemory;
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(top: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.cpu, size: 18, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Device Memory',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                // Refresh button
+                SizedBox(
+                  height: 28,
+                  width: 28,
+                  child: IconButton(
+                    onPressed: ble.isLoadingMemory ? null : () => ble.getDeviceMemory(),
+                    icon: ble.isLoadingMemory
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(LucideIcons.refreshCw, size: 14, color: Theme.of(context).colorScheme.primary),
+                    padding: EdgeInsets.zero,
+                    tooltip: 'Refresh Memory',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (mem == null) ...[
+              // Belum di-fetch: tampilkan tombol
+              Center(
+                child: TextButton.icon(
+                  onPressed: ble.isLoadingMemory ? null : () => ble.getDeviceMemory(),
+                  icon: const Icon(LucideIcons.hardDrive, size: 16),
+                  label: Text(ble.isLoadingMemory ? 'Loading...' : 'Fetch Memory Info'),
+                ),
+              ),
+            ] else ...[
+              // PSRAM bar
+              _buildMemoryBar(
+                label: 'PSRAM',
+                usedPercent: mem.psramUsagePercent,
+                freeText: '${mem.psramFreeFormatted} free / ${mem.psramTotalFormatted}',
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 10),
+              // Flash bar
+              _buildMemoryBar(
+                label: 'Flash',
+                usedPercent: mem.flashUsagePercent,
+                freeText: '${mem.flashFreeFormatted} free / ${mem.flashTotalFormatted}',
+                color: Colors.orange,
+              ),
+              const SizedBox(height: 10),
+              // Info row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildMemoryChip(LucideIcons.layers, '${mem.slots} slots'),
+                  _buildMemoryChip(LucideIcons.zap, 'Heap: ${mem.heapFreeFormatted}'),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMemoryBar({
+    required String label,
+    required double usedPercent,
+    required String freeText,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(
+              '${usedPercent.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: usedPercent > 85 ? Colors.red : color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: usedPercent / 100,
+            minHeight: 8,
+            backgroundColor: color.withValues(alpha: 0.15),
+            valueColor: AlwaysStoppedAnimation(usedPercent > 85 ? Colors.red : color),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          freeText,
+          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMemoryChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ble = Provider.of<BleProvider>(context);
@@ -550,7 +718,13 @@ class _BleSyncScreenState extends State<BleSyncScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Image.asset('assets/logo1.png'),
+        ),
         title: Text(_l10n?.translate('syncToDevice') ?? 'Sync to Device'),
+        centerTitle: true,
       ),
       body: Column(
         children: [

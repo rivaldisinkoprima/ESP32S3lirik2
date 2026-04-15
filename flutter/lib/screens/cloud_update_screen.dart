@@ -44,6 +44,11 @@ class _CloudUpdateView extends StatelessWidget {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
+        leadingWidth: 100,
+        leading: Padding(
+          padding: const EdgeInsets.all(15.0),
+          child: Image.asset('assets/logo1.png'),
+        ),
         title: Text(l10n.translate('updateScreenTitle')),
         centerTitle: true,
         actions: [

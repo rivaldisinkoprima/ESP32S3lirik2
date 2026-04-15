@@ -205,7 +205,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
 
   Future<void> _pickAudioFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
+      type: FileType.any,
     );
     if (result != null && result.files.single.path != null) {
       String path = result.files.single.path!;
@@ -857,6 +857,7 @@ class _DeretEditorScreenState extends State<DeretEditorScreen> {
         child: Scaffold(
           appBar: AppBar(
             title: Text(_l10n?.translate('editTrack', ['${widget.slotNumber}']) ?? 'Edit Track ${widget.slotNumber}'),
+            centerTitle: true,
             actions: [
               IconButton(
                 icon: const Icon(LucideIcons.check),

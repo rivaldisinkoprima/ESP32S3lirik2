@@ -115,6 +115,9 @@ void deleteAllDeretFiles() {
   Serial.println("[LFS-DEL] Deleting ALL deret files...");
 
   int deleted = 0;
+  String paths[60];
+  int count = 0;
+
   File root = LittleFS.open("/lirik");
   if (root && root.isDirectory()) {
       File file = root.openNextFile();
@@ -123,13 +126,20 @@ void deleteAllDeretFiles() {
           if (name.indexOf("deret_") != -1 && name.indexOf(".json") != -1) {
               String path = name;
               if (!path.startsWith("/")) path = "/lirik/" + path;
-              LittleFS.remove(path);
-              Serial.print("[LFS-DEL]   Deleted: ");
-              Serial.println(path);
-              deleted++;
+              if (count < 60) {
+                  paths[count++] = path;
+              }
           }
           file = root.openNextFile();
       }
+      root.close();
+  }
+
+  for(int i = 0; i < count; i++) {
+      LittleFS.remove(paths[i]);
+      Serial.print("[LFS-DEL]   Deleted: ");
+      Serial.println(paths[i]);
+      deleted++;
   }
 
   Serial.print("[LFS-DEL] Total files deleted: ");
@@ -191,6 +201,7 @@ int scanDeretSlots() {
             }
             file = root.openNextFile();
         }
+        root.close();
     }
 
     // Minimum 10 agar navigasi UI tetap konsisten saat LittleFS kosong
@@ -355,6 +366,7 @@ String buildCheckPayload() {
           }
           file = root.openNextFile();
       }
+      root.close();
   }
 
   for (int slot = 1; slot <= 20; slot++) {
