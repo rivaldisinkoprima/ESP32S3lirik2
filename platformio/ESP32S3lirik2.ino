@@ -21,7 +21,6 @@
 #include <LittleFS.h>
 #include <esp_task_wdt.h>
 
-
 // Deklarasi fungsi UI untuk dipanggil di ble_server.ino
 void showSyncingUI(int slot, int total);
 void hideSyncingUI();
@@ -35,7 +34,7 @@ HardwareSerial mySerial1(1);
 #define TFT_DC 11
 #define TFT_MOSI 10
 #define TFT_SCK 15
-#define TFT_MISO -1 
+#define TFT_MISO -1
 
 #define PIN_CHRG 45
 #define PIN_STBY 48
@@ -47,14 +46,16 @@ HardwareSerial mySerial1(1);
 #define BATT_X 100
 #define BATT_Y 3
 
-SPIClass spiTFT(FSPI); // FSPI = SPI2 pada ESP32-S3 (HSPI tidak punya default pins di S3!)
+SPIClass spiTFT(
+    FSPI); // FSPI = SPI2 pada ESP32-S3 (HSPI tidak punya default pins di S3!)
 Adafruit_ST7735 tft = Adafruit_ST7735(&spiTFT, TFT_CS, TFT_DC, TFT_RST);
 
-// ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA dipakai!
-// Pin DFPlayer dipindah ke GPIO yang aman (di luar range 26-37)
+// ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA
+// dipakai! Pin DFPlayer dipindah ke GPIO yang aman (di luar range 26-37)
 static const uint8_t PIN_MP3_TX = 16; // TX ke DFPlayer RX (GPIO aman)
 static const uint8_t PIN_MP3_RX = 7;  // RX dari DFPlayer TX (GPIO aman)
-// SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX); // ← DINONAKTIFKAN: tidak dipakai
+// SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX); // ← DINONAKTIFKAN:
+// tidak dipakai
 
 DFRobotDFPlayerMini myDFPlayer;
 
@@ -102,15 +103,16 @@ enum ChargerState { NOT_CHARGING, CHARGING, FULL };
 ChargerState lastState = NOT_CHARGING;
 ChargerState currentState;
 
-// === Dynamic Memory Profile (ADAPTIF — dihitung dari PSRAM fisik saat boot) ===
-size_t totalPsramSize = 0;           // Diisi saat boot dari ESP.getPsramSize()
-size_t safePsramThreshold = 0;       // 10% dari totalPsramSize (cadangan minimum)
-size_t totalFlashSize = 0;           // LittleFS total capacity
+// === Dynamic Memory Profile (ADAPTIF — dihitung dari PSRAM fisik saat boot)
+// ===
+size_t totalPsramSize = 0;     // Diisi saat boot dari ESP.getPsramSize()
+size_t safePsramThreshold = 0; // 10% dari totalPsramSize (cadangan minimum)
+size_t totalFlashSize = 0;     // LittleFS total capacity
 const size_t SAFE_FLASH_MIN = 50 * 1024; // Minimal 50KB sisa flash
-const size_t SAFE_HEAP_MIN = 32768;  // Minimal 32KB internal heap
+const size_t SAFE_HEAP_MIN = 32768;      // Minimal 32KB internal heap
 
 // === Dynamic Slot Management ===
-int activeDaretCount = 10;           // Default fallback (di-update saat boot & sync)
+int activeDaretCount = 10; // Default fallback (di-update saat boot & sync)
 
 unsigned long lastRTC = 0;
 int lastBatteryUpdate = 0;
@@ -180,31 +182,33 @@ bool checkMemorySafety();
 /**
  * Baca kapasitas PSRAM/Heap dari hardware saat boot.
  * Threshold 90% dihitung dinamis — adaptif terhadap upgrade HW.
- * 
+ *
  * Contoh:
  *   PSRAM 8MB  → cadangan min 800KB (threshold = 7.2MB)
  *   PSRAM 16MB → cadangan min 1.6MB (threshold = 14.4MB)
  */
 void initMemoryProfile() {
-    totalPsramSize = ESP.getPsramSize();
-    safePsramThreshold = totalPsramSize / 10;  // 10% dari total = batas sisa minimum
-    
-    Serial.println("\n========= MEMORY PROFILE =========");
-    Serial.printf("  Heap Total  : %u bytes\n", ESP.getHeapSize());
-    Serial.printf("  Heap Free   : %u bytes\n", ESP.getFreeHeap());
-    Serial.printf("  PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize, totalPsramSize / 1048576.0);
-    Serial.printf("  PSRAM Free  : %u bytes\n", ESP.getFreePsram());
-    Serial.printf("  PSRAM Gate  : %u bytes (10%% reserved)\n", safePsramThreshold);
-    Serial.println("==================================");
-}
+  totalPsramSize = ESP.getPsramSize();
+  safePsramThreshold =
+      totalPsramSize / 10; // 10% dari total = batas sisa minimum
 
+  Serial.println("\n========= MEMORY PROFILE =========");
+  Serial.printf("  Heap Total  : %u bytes\n", ESP.getHeapSize());
+  Serial.printf("  Heap Free   : %u bytes\n", ESP.getFreeHeap());
+  Serial.printf("  PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize,
+                totalPsramSize / 1048576.0);
+  Serial.printf("  PSRAM Free  : %u bytes\n", ESP.getFreePsram());
+  Serial.printf("  PSRAM Gate  : %u bytes (10%% reserved)\n",
+                safePsramThreshold);
+  Serial.println("==================================");
+}
 
 void setup() {
   Serial.begin(115200);
-  delay(1000); // Beri waktu serial stabil
+  delay(1000);          // Beri waktu serial stabil
   esp_task_wdt_reset(); // ① Feed WDT setelah delay awal
-  
-  initMemoryProfile();  // ★ PERTAMA: baca kapasitas memori hardware
+
+  initMemoryProfile(); // ★ PERTAMA: baca kapasitas memori hardware
 
   pinMode(TrigMic, OUTPUT);
   pinMode(TrigRlyDF, OUTPUT);
@@ -219,10 +223,13 @@ void setup() {
   tft.setRotation(2);
   pinMode(17, OUTPUT);
   digitalWrite(17, HIGH);
-  Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok dengan data line PSRAM Octal!)
-  readRTC(); // ★ Baca jam RTC SEBELUM splash screen agar tampiljam() menampilkan waktu yang benar
+  Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok
+                      // dengan data line PSRAM Octal!)
+  readRTC();          // ★ Baca jam RTC SEBELUM splash screen agar tampiljam()
+                      // menampilkan waktu yang benar
   begin();
-  esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di begin())
+  esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di
+                        // begin())
   // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai
   // Pullup
   pinMode(buttonNext, INPUT_PULLUP);
@@ -255,16 +262,20 @@ void setup() {
   // drawBatteryScreen(currentState);
   // lastState = currentState;
 
-  mySerial1.begin(9600, SERIAL_8N1, PIN_MP3_RX, PIN_MP3_TX); // RX=GPIO7, TX=GPIO16 (aman, di luar range PSRAM 26-37)
+  mySerial1.begin(
+      9600, SERIAL_8N1, PIN_MP3_RX,
+      PIN_MP3_TX); // RX=GPIO7, TX=GPIO16 (aman, di luar range PSRAM 26-37)
   mySerial1.setTimeout(1000);
   delay(500);
   esp_task_wdt_reset(); // ③ Feed WDT sebelum DFPlayer
   Serial.println("Initializing DFPlayer ...");
 
 #if DFPLAYER_ENABLED
-  if (!myDFPlayer.begin(mySerial1, /*isACK=*/false, /*isListenOnlyMode=*/true)) {
+  if (!myDFPlayer.begin(mySerial1, /*isACK=*/false,
+                        /*isListenOnlyMode=*/true)) {
     Serial.println(F("DFPlayer tidak ditemukan (Skip untuk testing)"));
   } else {
+    Serial.println(F("DFPlayer terdeteksi!!!"));
     myDFPlayer.volume(loud);
     myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
     myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
@@ -278,10 +289,11 @@ void setup() {
   // Setiap panggilan myDFPlayer.stop()/play()/pause() di kode lain
   // akan memanggil sendStack() → write ke NULL → LoadProhibited crash!
   myDFPlayer.begin(mySerial1, /*isACK=*/false, /*isListenOnlyMode=*/true);
-  Serial.println(F("[SETUP] DFPlayer: begin() called (stream registered), hardware SKIPPED"));
+  Serial.println(F("[SETUP] DFPlayer: begin() called (stream registered), "
+                   "hardware SKIPPED"));
 #endif
   mySerial1.setTimeout(1000);
-  esp_task_wdt_reset(); // ④ Feed WDT setelah DFPlayer selesai
+  esp_task_wdt_reset();        // ④ Feed WDT setelah DFPlayer selesai
   tft.setFont(&FreeSans9pt7b); // Atur font
   tft.setTextSize(1);
   readRTC();
@@ -291,21 +303,22 @@ void setup() {
   // Initialize LittleFS
   if (initLittleFS()) {
     Serial.println("[SETUP] LittleFS ready for lyrics storage");
-    
+
     // ★ Dynamic slot count dari LittleFS
     activeDaretCount = scanDeretSlots();
-    
+
     // ★ Update flash diagnostics (LittleFS sudah mount)
     totalFlashSize = LittleFS.totalBytes();
-    
+
     // Debug output diganti untuk menghindari spam LittleFS.exists()
     Serial.println("[SETUP] Filesystem loaded.");
-    
+
     Serial.println("[SETUP] === STORAGE SUMMARY ===");
     Serial.printf("[SETUP]   Active Derets : %d\n", activeDaretCount);
     Serial.printf("[SETUP]   Flash Total   : %u bytes\n", totalFlashSize);
     Serial.printf("[SETUP]   Flash Used    : %u bytes\n", LittleFS.usedBytes());
-    Serial.printf("[SETUP]   Flash Free    : %u bytes\n", totalFlashSize - LittleFS.usedBytes());
+    Serial.printf("[SETUP]   Flash Free    : %u bytes\n",
+                  totalFlashSize - LittleFS.usedBytes());
     Serial.println("[SETUP] =============================");
   } else {
     Serial.println(
@@ -322,7 +335,6 @@ void setup() {
   Serial.printf("[SETUP]   Free PSRAM: %u bytes\n", ESP.getFreePsram());
   Serial.printf("[SETUP]   Slots     : %d\n", activeDaretCount);
   Serial.println("[SETUP] ========================================");
-
 }
 
 void menu(int pilihan) {
@@ -377,15 +389,16 @@ void screening() {
 void loop() {
   // Reset watchdog untuk mencegah trigger
   esp_task_wdt_reset();
-  
+
   // KUNCI AKSES: Jika sedang sinkronisasi via Bluetooth,
   // Core 1 dilarang memproses UI (Jam, Baterai, dll) & Tombol.
   // Ini mengamankan jalur layar (SPI) agar tidak terjadi Tabrakan/Deadlock.
   if (isSyncing) {
-    vTaskDelay(10 / portTICK_PERIOD_MS); // Mengalah (yield) agar system tidak marah
-    return; 
+    vTaskDelay(10 /
+               portTICK_PERIOD_MS); // Mengalah (yield) agar system tidak marah
+    return;
   }
-  
+
   handleBLE(); // Tangani data Bluetooth yang masuk
 
   // Update Status Bluetooth di Layar secara berkala
@@ -515,13 +528,15 @@ void sebelumnya() {
 
 void lirik() {
 
-  if (!running || words == NULL) return; // Guard: jangan akses pointer NULL
+  if (!running || words == NULL)
+    return; // Guard: jangan akses pointer NULL
 
   elapsedTime = millis() - startTime;
 
   // Lakukan pengecekan bounds ganda
   if (currentWord >= 0 && currentWord < loadedWordCount) {
-    if (words[currentWord].text != NULL && elapsedTime >= words[currentWord].time) {
+    if (words[currentWord].text != NULL &&
+        elapsedTime >= words[currentWord].time) {
       tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
       tft.setCursor(10, 85);
       tft.print(words[currentWord].text);
@@ -594,10 +609,11 @@ void listderet() {
 void drawBTIcon() {
   extern bool bleConnected;
   extern bool isSyncing;
-  
+
   // Skip update icon jika sedang sync agar tidak ada race condition
-  if (isSyncing) return;
-  
+  if (isSyncing)
+    return;
+
   int x = 60; // Spasi aman dari jam
   int y = 1;  // Koordinat Y diangkat ke atas agar lebih pas
   int w = 5;  // Lebar ikon
@@ -641,20 +657,20 @@ void showSyncingUI(int slot, int total) {
 void hideSyncingUI() {
   // Paksa clear area icon bluetooth sebelum fill screen
   tft.fillRect(60, 0, 7, 10, ST77XX_BLACK);
-  
+
   tft.fillScreen(ST77XX_BLACK);
-  
+
   // Clear area icon bluetooth lagi setelah fill screen
   tft.fillRect(60, 0, 7, 10, ST77XX_BLACK);
-  
+
   tft.setFont(&FreeSans9pt7b);
-  
+
   // Reset flag sync
   isSyncing = false;
-  
+
   // Paksa kembali ke menu utama agar tidak tersesat di blackscreen
-  posisi = 1; 
-  on = true;  // Pastikan flag tampilan aktif
+  posisi = 1;
+  on = true; // Pastikan flag tampilan aktif
   extern void drawMainMenu();
   drawMainMenu(); // Gambar ulang menu utama tanpa menunggu tombol
   Serial.println("[UI] Screen recovered after sync");
