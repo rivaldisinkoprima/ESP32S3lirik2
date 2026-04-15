@@ -85,18 +85,18 @@ void displayDeretGeneric(int deretIndex, int page) {
     posisi = 5;
     
     GFXcanvas16 canvas(128, 140);
-    canvas.setFont(&FreeSans9pt7b);
     canvas.fillScreen(ST77XX_BLACK);
     
     int currentSlot = deretIndex + 1;
     
     if (!deretExistsInLittleFS(currentSlot)) {
-        canvas.setTextColor(ST77XX_RED);
-        canvas.setCursor(10, 60); // offset -20
-        canvas.print("DATA KOSONG");
-        canvas.setCursor(10, 80); // offset -20
-        canvas.setTextSize(1);
-        canvas.print("Kirim dari aplikasi");
+        canvas.drawRect(10, 30, 108, 80, ST77XX_YELLOW);
+        
+        canvas.setTextColor(ST77XX_YELLOW);
+        canvas.setCursor(30, 65);
+        canvas.setTextSize(2);
+        canvas.print("KOSONG");
+        
         tft.drawRGBBitmap(0, 20, canvas.getBuffer(), 128, 140);
         tampiljam();
         bat_cas_move();
