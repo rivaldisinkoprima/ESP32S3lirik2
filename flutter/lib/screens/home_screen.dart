@@ -578,55 +578,85 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: workspace.derets.length,
                     itemBuilder: (context, index) {
                       final deret = workspace.derets[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 1,
-                        shadowColor: Colors.black.withValues(alpha: 0.05),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  DeretEditorScreen(slotNumber: deret.slotNumber),
-                            ),
+                      return Dismissible(
+                        key: ValueKey(deret.slotNumber.toString()),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.error,
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-                            child: ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: deret.isSynced
-                                      ? Theme.of(context).colorScheme.secondaryContainer
-                                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                  shape: BoxShape.circle,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: Icon(LucideIcons.trash2, color: Theme.of(context).colorScheme.onError),
+                        ),
+                        onDismissed: (direction) {
+                          final slotNum = deret.slotNumber;
+                          workspace.removeDeret(slotNum);
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(l10n?.translate('trackDeleted', ['$slotNum']) ?? 'Track $slotNum deleted'),
+                              action: SnackBarAction(
+                                label: l10n?.translate('undo') ?? 'UNDO',
+                                onPressed: () {
+                                  workspace.restoreLastDeleted();
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 1,
+                          shadowColor: Colors.black.withValues(alpha: 0.05),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    DeretEditorScreen(slotNumber: deret.slotNumber),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: deret.isSynced
+                                        ? Theme.of(context).colorScheme.secondaryContainer
+                                        : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    deret.isSynced
+                                        ? LucideIcons.checkCircle
+                                        : LucideIcons.music,
+                                    color: deret.isSynced
+                                        ? Theme.of(context).colorScheme.onSecondaryContainer
+                                        : Theme.of(context).colorScheme.outline,
+                                    size: 24,
+                                  ),
                                 ),
-                                child: Icon(
+                                title: Text(
+                                  deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: Text(
                                   deret.isSynced
-                                      ? LucideIcons.checkCircle
-                                      : LucideIcons.music,
-                                  color: deret.isSynced
-                                      ? Theme.of(context).colorScheme.onSecondaryContainer
-                                      : Theme.of(context).colorScheme.outline,
-                                  size: 24,
+                                      ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
+                                      : l10n?.translate('notSynced') ?? 'Not synced',
+                                  style: TextStyle(
+                                    color: deret.isSynced ? Colors.green.shade600 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                    fontWeight: deret.isSynced ? FontWeight.w500 : FontWeight.normal,
+                                  ),
                                 ),
+                                trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.outlineVariant),
                               ),
-                              title: Text(
-                                deret.displayTitle ?? l10n?.translate('trackNum', ['${deret.slotNumber}']) ?? 'Track ${deret.slotNumber}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text(
-                                deret.isSynced
-                                    ? l10n?.translate('wordsCount', ['${deret.words.length}']) ?? '${deret.words.length} words'
-                                    : l10n?.translate('notSynced') ?? 'Not synced',
-                                style: TextStyle(
-                                  color: deret.isSynced ? Colors.green.shade600 : Theme.of(context).colorScheme.onSurfaceVariant,
-                                  fontWeight: deret.isSynced ? FontWeight.w500 : FontWeight.normal,
-                                ),
-                              ),
-                              trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.outlineVariant),
                             ),
                           ),
                         ),
