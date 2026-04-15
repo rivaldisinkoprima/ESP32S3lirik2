@@ -13,37 +13,58 @@ Firmware untuk perangkat ESP32-S3 yang menangani pemutaran audio (DFPlayer), tam
 - **Stable Button Inputs**: Memanfaatkan ESP32 `INPUT_PULLUP` dan active-LOW detection untuk menstabilkan masalah floating pin dan menghilangkan "ghost press" dari noise lingkungan.
 - **Enhanced Serial Debug**: Logging detail dengan tag terstruktur untuk setiap subsistem.
 
-## Persyaratan Hardware
+## Konfigurasi Hardware (Wiring Pin)
 
-| Komponen | Pin (ESP32-S3) | Deskripsi |
-|----------|----------------|-----------|
+Untuk menjaga stabilitas sistem ESP32-S3 (khususnya varian N16R8 dengan Octal PSRAM), beberapa pin telah dipindah dari konfigurasi default untuk menghindari bentrokan bus internal.
+
+### 1. Display (TFT ST7735 SPI)
+| Komponen | Pin | Deskripsi |
+|----------|-----|-----------|
 | **TFT CS** | 13 | Chip Select SPI LCD |
 | **TFT RST**| 12 | Reset SPI LCD |
 | **TFT DC** | 11 | Data/Command SPI LCD |
 | **TFT MOSI**| 10 | MOSI SPI LCD |
 | **TFT SCK** | 15 | Clock SPI LCD |
 | **TFT MISO**| -1 | Tidak Digunakan |
-| **MP3 TX** | 16 | Ke pin RX DFPlayer Mini (Aman dari conflict PSRAM Octal) |
-| **MP3 RX** | 7 | Dari pin TX DFPlayer Mini (Aman dari conflict PSRAM Octal) |
-| **SDA (RTC)** | 39 | I2C Data DS3231 (Dipindah menghindari GPIO37/38 Octal PSRAM) |
-| **SCL (RTC)** | 40 | I2C Clock DS3231 (Dipindah menghindari GPIO37/38 Octal PSRAM) |
-| **Button Next** | 4 | Navigasi Next (Aktif LOW, Internal Pull-up) |
-| **Button Pause/OK**| 3 | Jeda/Pilih (Aktif LOW, Internal Pull-up) |
-| **Button Home**| 1 | Kembali ke awal (Dalam proses development) |
-| **Button Prev**| 2 | Navigasi Balik (Dalam proses development) |
-| **Button Vol Up**| 18 | Tambah Volume (Dalam proses development) |
-| **Button Vol Down**| 9 | Kurangi Volume (Dalam proses development) |
-| **Button Mode**| 6 | Ganti Mode (Kanan/Kiri/All) (Dalam proses development) |
-| **Button MDokter**| 19 | Mode Dokter |
-| **Button Power**| 46 | Deteksi Power (Aktif LOW, Internal Pull-up) |
-| **BAT ADC** | 5 | Sensor Tegangan Baterai Analog |
-| **PIN CHRG / Batt** | 45 | Status Baterai Mengisi (Aktif LOW, Internal Pull-up) |
-| **PIN STBY** | 48 | Status Baterai Penuh (Aktif LOW, Internal Pull-up) |
-| **TrigMic** | 8 | Trigger Output Mic |
+
+### 2. Audio & RTC (Serial & I2C)
+| Komponen | Pin | Deskripsi |
+|----------|-----|-----------|
+| **MP3 TX** | 16 | Ke pin RX DFPlayer Mini |
+| **MP3 RX** | 7 | Dari pin TX DFPlayer Mini |
+| **SDA (RTC)** | 39 | I2C Data DS3231 |
+| **SCL (RTC)** | 40 | I2C Clock DS3231 |
+
+### 3. Tombol Navigasi & Kontrol (Aktif LOW)
+Semua tombol menggunakan konfigurasi `INPUT_PULLUP` internal.
+| Komponen | Pin | Deskripsi |
+|----------|-----|-----------|
+| **Next** | 4 | Navigasi Maju |
+| **Pause/OK**| 3 | Jeda atau Pilih Menu |
+| **Home** | 1 | Kembali ke Menu Utama (Dev) |
+| **Previous**| 2 | Navigasi Mundur (Dev) |
+| **Vol Up** | 18 | Tambah Volume (Dev) |
+| **Vol Down**| 9 | Kurangi Volume (Dev) |
+| **Mode** | 6 | Ganti Mode Putar (Dev) |
+| **MDokter** | 19 | Mode Dokter |
+| **Power** | 46 | Tombol Power On/Off |
+
+### 4. Power & Battery Management
+| Komponen | Pin | Deskripsi |
+|----------|-----|-----------|
+| **BAT ADC** | 5 | Sensor Tegangan Baterai (Analog) |
+| **CHRG Status**| 45 | Status Charging (Aktif LOW) |
+| **STBY Status**| 48 | Baterai Full / Standby (Aktif LOW) |
 | **TrigPower** | 21 | Trigger Output Power |
-| **TrigRlyDF** | 20 | Trigger Relay Modul Suara (DFPlayer) |
+
+### 5. Trigger & Indikator Lainnya
+| Komponen | Pin | Deskripsi |
+|----------|-----|-----------|
+| **TrigMic** | 8 | Trigger Output Mic |
+| **TrigRlyDF** | 20 | Trigger Relay Modul Suara |
+| **GPIO 14** | 14 | Input Serbaguna |
+| **GPIO 17** | 17 | Output Serbaguna |
 | **Pin LED** | 55 | Indikator LED Hardware |
-| **Backlight/Misc**| 14 & 17 | GPIO Tambahan (14-Input, 17-Output) |
 
 ## Struktur Program
 
