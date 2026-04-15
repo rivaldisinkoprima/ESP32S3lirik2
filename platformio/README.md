@@ -17,17 +17,33 @@ Firmware untuk perangkat ESP32-S3 yang menangani pemutaran audio (DFPlayer), tam
 
 | Komponen | Pin (ESP32-S3) | Deskripsi |
 |----------|----------------|-----------|
-| **TFT CS** | 13 | Chip Select SPI |
-| **TFT RST**| 12 | Reset SPI |
-| **TFT DC** | 11 | Data/Command SPI |
-| **TFT MOSI**| 10 | MOSI SPI |
-| **TFT SCK** | 15 | Clock SPI |
-| **MP3 TX** | 36 | Software Serial ke DFPlayer |
-| **MP3 RX** | 35 | Software Serial ke DFPlayer |
-| **Button Next** | 4 | Navigasi |
-| **Button Pause**| 3 | OK / Pause |
-| **SDA (RTC)** | 37 | I2C untuk DS3231 |
-| **SCL (RTC)** | 38 | I2C untuk DS3231 |
+| **TFT CS** | 13 | Chip Select SPI LCD |
+| **TFT RST**| 12 | Reset SPI LCD |
+| **TFT DC** | 11 | Data/Command SPI LCD |
+| **TFT MOSI**| 10 | MOSI SPI LCD |
+| **TFT SCK** | 15 | Clock SPI LCD |
+| **TFT MISO**| -1 | Tidak Digunakan |
+| **MP3 TX** | 16 | Ke pin RX DFPlayer Mini (Aman dari conflict PSRAM Octal) |
+| **MP3 RX** | 7 | Dari pin TX DFPlayer Mini (Aman dari conflict PSRAM Octal) |
+| **SDA (RTC)** | 39 | I2C Data DS3231 (Dipindah menghindari GPIO37/38 Octal PSRAM) |
+| **SCL (RTC)** | 40 | I2C Clock DS3231 (Dipindah menghindari GPIO37/38 Octal PSRAM) |
+| **Button Next** | 4 | Navigasi Next (Aktif LOW, Internal Pull-up) |
+| **Button Pause/OK**| 3 | Jeda/Pilih (Aktif LOW, Internal Pull-up) |
+| **Button Home**| 1 | Kembali ke awal (Dalam proses development) |
+| **Button Prev**| 2 | Navigasi Balik (Dalam proses development) |
+| **Button Vol Up**| 18 | Tambah Volume (Dalam proses development) |
+| **Button Vol Down**| 9 | Kurangi Volume (Dalam proses development) |
+| **Button Mode**| 6 | Ganti Mode (Kanan/Kiri/All) (Dalam proses development) |
+| **Button MDokter**| 19 | Mode Dokter |
+| **Button Power**| 46 | Deteksi Power (Aktif LOW, Internal Pull-up) |
+| **BAT ADC** | 5 | Sensor Tegangan Baterai Analog |
+| **PIN CHRG / Batt** | 45 | Status Baterai Mengisi (Aktif LOW, Internal Pull-up) |
+| **PIN STBY** | 48 | Status Baterai Penuh (Aktif LOW, Internal Pull-up) |
+| **TrigMic** | 8 | Trigger Output Mic |
+| **TrigPower** | 21 | Trigger Output Power |
+| **TrigRlyDF** | 20 | Trigger Relay Modul Suara (DFPlayer) |
+| **Pin LED** | 55 | Indikator LED Hardware |
+| **Backlight/Misc**| 14 & 17 | GPIO Tambahan (14-Input, 17-Output) |
 
 ## Struktur Program
 
