@@ -2,6 +2,14 @@
 #include "Fonts/Org_01.h"        // Font tambahan
 #include "HardwareSerial.h"
 #include "RTClib.h"
+
+// ============================================================
+// OPSI 1: Sync Jam RTC dari Waktu Kompilasi
+// Set ke 1 SEKALI saat pertama kali upload untuk mengatur jam.
+// Set kembali ke 0 setelah jam benar, lalu upload ulang.
+// Jika tetap 1, jam akan di-reset setiap boot!
+// ============================================================
+#define SYNC_RTC_ON_BOOT 1 // Ubah ke 1 untuk sync, 0 untuk normal
 #include "driver/adc.h"
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
@@ -21,11 +29,37 @@
 #include <LittleFS.h>
 #include <esp_task_wdt.h>
 
+enum ChargerState { NOT_CHARGING, CHARGING, FULL };
+
 // Deklarasi fungsi UI untuk dipanggil di ble_server.ino
 void showSyncingUI(int slot, int total);
 void hideSyncingUI();
 void drawBTIcon();
 bool isSyncing = false; // Flag untuk menandai sedang sync
+
+// RTC Object (RTClib) — dipakai untuk Opsi 1 (boot sync) & Opsi 3 (BLE sync)
+RTC_DS3231 rtcLib;
+// Note: decToBcd & bcdToDec sudah ada di mode.ino, tidak perlu redefinisi
+
+// Tulis jam/menit/detik langsung ke DS3231 via I2C raw
+// Dipanggil dari: Opsi 1 (boot) & BLE @SET_TIME command
+void setRtcTime(byte h, byte m, byte s) {
+  Wire.beginTransmission(0x68); // DS3231 I2C address
+  Wire.write(0x00);
+  extern byte decToBcd(byte val);
+  Wire.write(decToBcd(s));
+  Wire.write(decToBcd(m));
+  Wire.write(decToBcd(h));
+  Wire.endTransmission();
+  
+  // INVALIDASI cache jam sebelumnya agar loop berikutnya memaksa TFT ter-refresh
+  extern int l_minute;
+  extern int l_hour;
+  l_minute = -1;
+  l_hour = -1;
+  
+  Serial.printf("[RTC] Jam diset ke %02d:%02d:%02d\n", h, m, s);
+}
 
 HardwareSerial mySerial1(1);
 
@@ -97,8 +131,6 @@ unsigned long currentMillis; // Variabele to store the number of milleseconds
 unsigned long currentMillis2;
 
 bool dokter_bicara = false;
-
-enum ChargerState { NOT_CHARGING, CHARGING, FULL };
 
 ChargerState lastState = NOT_CHARGING;
 ChargerState currentState;
@@ -225,8 +257,19 @@ void setup() {
   digitalWrite(17, HIGH);
   Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok
                       // dengan data line PSRAM Octal!)
-  readRTC();          // ★ Baca jam RTC SEBELUM splash screen agar tampiljam()
-                      // menampilkan waktu yang benar
+
+#if SYNC_RTC_ON_BOOT
+  if (rtcLib.begin()) {
+    rtcLib.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    Serial.println("[RTC] OPSI 1: Jam otomatis dimutakhirkan dengan jam PC "
+                   "(waktu kompilasi)!");
+  } else {
+    Serial.println("[RTC] Gagal menemukan DS3231 saat boot sync.");
+  }
+#endif
+
+  readRTC(); // ★ Baca jam RTC SEBELUM splash screen agar tampiljam()
+             // menampilkan waktu yang benar
   begin();
   esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di
                         // begin())

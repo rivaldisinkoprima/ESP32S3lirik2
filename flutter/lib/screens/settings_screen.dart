@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../providers/workspace_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/locale_provider.dart';
+import '../providers/ble_provider.dart';
 import '../l10n/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {

@@ -185,6 +185,9 @@ class BleProvider with ChangeNotifier {
 
         // Auto-fetch Hardware Version dari NVS ESP32
         await readHardwareVersion();
+        
+        // Auto-sync Jam RTC (Opsi 3) secara background tanpa UI
+        await sendRtcTimeSync();
       }
 
       notifyListeners();
@@ -408,6 +411,38 @@ class BleProvider with ChangeNotifier {
       }
     }
     debugPrint('[BLE-VER] Timeout waiting for ACK_VER');
+    return false;
+  }
+
+  // ─── RTC Time Sync Commands ────────────────────────────────────────────────
+  
+  /// Mengirim waktu HP saat ini ke ESP32 untuk menyamakan jam RTC (DS3231)
+  /// Format: @SET_TIME:HH:MM:SS
+  Future<bool> sendRtcTimeSync() async {
+    if (_lirikCharacteristic == null) return false;
+    
+    final now = DateTime.now();
+    final h = now.hour.toString().padLeft(2, '0');
+    final m = now.minute.toString().padLeft(2, '0');
+    final s = now.second.toString().padLeft(2, '0');
+    
+    debugPrint('[BLE-TIME] Sending @SET_TIME:$h:$m:$s...');
+    _lastStatus = ''; 
+    final cmd = '@SET_TIME:$h:$m:$s[EOF]';
+    final bytes = utf8.encode(cmd);
+    
+    await _lirikCharacteristic!.write(bytes, withoutResponse: false);
+    
+    // Tunggu OK:TIME dari ESP32 (max 3 detik)
+    for (int i = 0; i < 30; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_lastStatus == 'OK:TIME') {
+        debugPrint('[BLE-TIME] Time sync acknowledged by ESP32');
+        _lastStatus = ''; 
+        return true;
+      }
+    }
+    debugPrint('[BLE-TIME] Timeout waiting for OK:TIME');
     return false;
   }
 

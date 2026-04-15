@@ -260,6 +260,26 @@ void parseBlePayload(const String& payload) {
         notifyStatus("ACK_VER");
         return; // Selesai
     }
+    if (payload.startsWith("@SET_TIME:")) {
+        // Format: "@SET_TIME:14:30:00"
+        String timeStr = payload.substring(10); // "14:30:00"
+        int firstColon = timeStr.indexOf(':');
+        int secondColon = timeStr.lastIndexOf(':');
+        
+        if (firstColon != -1 && secondColon != -1 && firstColon != secondColon) {
+            byte h = timeStr.substring(0, firstColon).toInt();
+            byte m = timeStr.substring(firstColon + 1, secondColon).toInt();
+            byte s = timeStr.substring(secondColon + 1).toInt();
+            
+            extern void setRtcTime(byte h, byte m, byte s);
+            setRtcTime(h, m, s);
+            
+            notifyStatus("OK:TIME");
+        } else {
+            notifyStatus("ERR:TIME_FMT");
+        }
+        return;
+    }
     // ─── Perintah Memory Report (Non-JSON) ───────────────────────────────
     if (payload.startsWith("@GET_MEMORY")) {
         Serial.println("[BLE-CMD] GET_MEMORY request received");
