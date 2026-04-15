@@ -43,7 +43,7 @@ void previouse(){
         isPlaying = false;
         selectedIndex--;
         if (selectedIndex < 0) {
-        selectedIndex = menuCount - 1;
+        selectedIndex = getMenuCount() - 1;
         }
         page = selectedIndex / itemsPerPage;
         displayMenu();

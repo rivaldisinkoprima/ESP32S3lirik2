@@ -1,3 +1,5 @@
+extern int activeDaretCount;
+
 int p = 1;
 void nextp(){
       if (digitalRead(buttonNext) == LOW && millis() - lastButtonTime > DEBOUNCE_MS) {
@@ -45,7 +47,7 @@ void nextp(){
       myDFPlayer.stop();
       isPlaying = false;
         selectedIndex++;
-        if (selectedIndex >= menuCount) {
+        if (selectedIndex >= getMenuCount()) {
             selectedIndex = 0;
         }
         page = selectedIndex / itemsPerPage;

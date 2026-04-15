@@ -2,13 +2,36 @@
  * File / Deret Menu Display
  * Menampilkan daftar deret dan isi kata-kata per deret di layar TFT.
  * 
- * Optimasi: 10 fungsi displayderet identik dikonsolidasikan menjadi 1 fungsi generik.
+ * Fully Dynamic: Menu menyesuaikan jumlah file aktual di LittleFS
+ * Batas maks: 255 (sesuai limit DFPlayer Mini per folder)
  */
 
-const char* menuItems[] = {"DERET 1", "DERET 2", "DERET 3", "DERET 4", "DERET 5", 
-                           "DERET 6", "DERET 7", "DERET 8", "DERET 9", "DERET 10"};
+// extern variabel dari main
+extern int activeDaretCount;
 
-const int menuCount = 10;
+// Buffer untuk label menu dinamis (max 255 slot sesuai limit DFPlayer)
+#define MAX_DERET_SLOTS 50
+char menuLabelBuffer[MAX_DERET_SLOTS][16];
+
+const char* getMenuItem(int index) {
+    if (index < 0 || index >= MAX_DERET_SLOTS) return "DERET ?";
+    return menuLabelBuffer[index];
+}
+
+void updateMenuLabels() {
+    // Build label berdasarkan activeDaretCount
+    for (int i = 0; i < MAX_DERET_SLOTS; i++) {
+        snprintf(menuLabelBuffer[i], sizeof(menuLabelBuffer[i]), "DERET %d", i + 1);
+    }
+}
+
+int getMenuCount() {
+    int count = activeDaretCount;
+    if (count < 1) count = 1;
+    if (count > MAX_DERET_SLOTS) count = MAX_DERET_SLOTS;
+    return count;
+}
+
 const int itemsPerPage = 5;
 int selectedIndex = 0;
 int page = 0;
@@ -20,6 +43,7 @@ int halaman = 0;
 void file(){
   displaymenu = 1;
   posisi = 4;
+  updateMenuLabels(); // Refresh label berdasarkan activeDaretCount terkini
   displayMenu();
 }
 
@@ -33,14 +57,14 @@ void displayMenu() {
     canvas.print("FILE");
     for (int i = 0; i < itemsPerPage; i++) {
         int index = page * itemsPerPage + i;
-        if (index < menuCount) {
+        if (index < getMenuCount()) {
             canvas.setCursor(10, (i + 2) * 15 + 10); // offset -20
             if (index == selectedIndex) {
                 canvas.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
             } else {
                 canvas.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
             }
-            canvas.print(menuItems[index]);
+            canvas.print(getMenuItem(index));
             posisi = 4;
         }
     } 
