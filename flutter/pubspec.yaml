@@ -60,9 +60,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: false
-  image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/icon.png"
+  image_path: "assets/icon/playstore.png"
+  adaptive_icon_background: "#264bbe"
+  adaptive_icon_foreground: "assets/icon/playstore_fullscreen.png"
 
 # End of configurations
 

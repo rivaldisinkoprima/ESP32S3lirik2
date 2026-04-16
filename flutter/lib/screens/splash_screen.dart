@@ -112,7 +112,7 @@ class _CustomSplashScreenState extends State<CustomSplashScreen> with SingleTick
                       ],
                     ),
                     child: Image.asset(
-                      'assets/icon/icon.png',
+                      'assets/icon/playstore.png',
                       width: 120,
                       height: 120,
                     ),
@@ -130,7 +130,7 @@ class _CustomSplashScreenState extends State<CustomSplashScreen> with SingleTick
                   child: Column(
                     children: [
                       Text(
-                        'Lirik Sync V2',
+                        'Lirik Sync',
                         style: GoogleFonts.outfit(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
@@ -155,7 +155,7 @@ class _CustomSplashScreenState extends State<CustomSplashScreen> with SingleTick
 
             // Loading indicator at bottom
             Positioned(
-              bottom: 60,
+              bottom: 110,
               child: Opacity(
                 opacity: 0.6,
                 child: Column(
@@ -173,6 +173,37 @@ class _CustomSplashScreenState extends State<CustomSplashScreen> with SingleTick
                         letterSpacing: 2,
                         fontWeight: FontWeight.w600,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Brand logo at the very bottom
+            Positioned(
+              bottom: 40,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _fadeAnimation.value * 0.7,
+                    child: child,
+                  );
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'powered by',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Image.asset(
+                      'assets/logo1.png',
+                      height: 20,
                     ),
                   ],
                 ),
