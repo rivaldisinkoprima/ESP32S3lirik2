@@ -760,6 +760,14 @@ class _HomeScreenState extends State<HomeScreen> {
           .where((n) => n > 0),
     };
 
+    // Step 1.5: Hapus slot lama yang TIDAK ada di dalam file import baru
+    final currentSlots = workspace.derets.map((d) => d.slotNumber).toList();
+    for (final slot in currentSlots) {
+      if (!allSlots.contains(slot)) {
+        workspace.removeDeret(slot);
+      }
+    }
+
     // Step 2: Auto-create slot yang belum ada (satu per satu, synchronous)
     for (final slot in allSlots.toList()..sort()) {
       if (!workspace.derets.any((d) => d.slotNumber == slot)) {
@@ -796,6 +804,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         wordsImported += words.length;
         changed = true;
+        deret.isSynced = false; // ★ Reset status sync karena lirik berubah
       }
 
       // Step 5: Simpan ke workspace (triggers _saveDerets)
