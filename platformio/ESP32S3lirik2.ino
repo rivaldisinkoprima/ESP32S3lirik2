@@ -51,13 +51,13 @@ void setRtcTime(byte h, byte m, byte s) {
   Wire.write(decToBcd(m));
   Wire.write(decToBcd(h));
   Wire.endTransmission();
-  
+
   // INVALIDASI cache jam sebelumnya agar loop berikutnya memaksa TFT ter-refresh
   extern int l_minute;
   extern int l_hour;
   l_minute = -1;
   l_hour = -1;
-  
+
   Serial.printf("[RTC] Jam diset ke %02d:%02d:%02d\n", h, m, s);
 }
 
@@ -248,7 +248,7 @@ void setup() {
   digitalWrite(TrigRlyDF, LOW);
   delay(200);
   pinMode(TrigPower, OUTPUT);
-  digitalWrite(TrigPower, LOW);
+  digitalWrite(TrigPower, HIGH);
   pinMode(14, INPUT);
   spiTFT.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.initR(INITR_BLACKTAB);
