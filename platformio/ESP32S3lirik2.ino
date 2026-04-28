@@ -86,8 +86,8 @@ Adafruit_ST7735 tft = Adafruit_ST7735(&spiTFT, TFT_CS, TFT_DC, TFT_RST);
 
 // ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA
 // dipakai! Pin DFPlayer dipindah ke GPIO yang aman (di luar range 26-37)
-static const uint8_t PIN_MP3_TX = 16; // TX ke DFPlayer RX (GPIO aman)
-static const uint8_t PIN_MP3_RX = 7;  // RX dari DFPlayer TX (GPIO aman)
+static const uint8_t PIN_MP3_TX = 41; // TX ke DFPlayer RX (GPIO aman)
+static const uint8_t PIN_MP3_RX = 16;  // RX dari DFPlayer TX (GPIO aman)
 // SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX); // ← DINONAKTIFKAN:
 // tidak dipakai
 
