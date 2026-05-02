@@ -2,6 +2,14 @@
 #include "Fonts/Org_01.h"        // Font tambahan
 #include "HardwareSerial.h"
 #include "RTClib.h"
+
+// ============================================================
+// OPSI 1: Sync Jam RTC dari Waktu Kompilasi
+// Set ke 1 SEKALI saat pertama kali upload untuk mengatur jam.
+// Set kembali ke 0 setelah jam benar, lalu upload ulang.
+// Jika tetap 1, jam akan di-reset setiap boot!
+// ============================================================
+#define SYNC_RTC_ON_BOOT 1 // Ubah ke 1 untuk sync, 0 untuk normal
 #include "driver/adc.h"
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
@@ -12,6 +20,46 @@
 #include <SoftwareSerial.h>
 #include <Wire.h>
 
+// BLE and LittleFS
+#include <ArduinoJson.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <FS.h>
+#include <LittleFS.h>
+#include <esp_task_wdt.h>
+
+enum ChargerState { NOT_CHARGING, CHARGING, FULL };
+
+// Deklarasi fungsi UI untuk dipanggil di ble_server.ino
+void showSyncingUI(int slot, int total);
+void hideSyncingUI();
+void drawBTIcon();
+bool isSyncing = false; // Flag untuk menandai sedang sync
+
+// RTC Object (RTClib) — dipakai untuk Opsi 1 (boot sync) & Opsi 3 (BLE sync)
+RTC_DS3231 rtcLib;
+// Note: decToBcd & bcdToDec sudah ada di mode.ino, tidak perlu redefinisi
+
+// Tulis jam/menit/detik langsung ke DS3231 via I2C raw
+// Dipanggil dari: Opsi 1 (boot) & BLE @SET_TIME command
+void setRtcTime(byte h, byte m, byte s) {
+  Wire.beginTransmission(0x68); // DS3231 I2C address
+  Wire.write(0x00);
+  extern byte decToBcd(byte val);
+  Wire.write(decToBcd(s));
+  Wire.write(decToBcd(m));
+  Wire.write(decToBcd(h));
+  Wire.endTransmission();
+
+  // INVALIDASI cache jam sebelumnya agar loop berikutnya memaksa TFT ter-refresh
+  extern int l_minute;
+  extern int l_hour;
+  l_minute = -1;
+  l_hour = -1;
+
+  Serial.printf("[RTC] Jam diset ke %02d:%02d:%02d\n", h, m, s);
+}
 
 HardwareSerial mySerial1(1);
 
@@ -20,6 +68,7 @@ HardwareSerial mySerial1(1);
 #define TFT_DC 11
 #define TFT_MOSI 10
 #define TFT_SCK 15
+#define TFT_MISO -1
 
 #define PIN_CHRG 45
 #define PIN_STBY 48
@@ -31,12 +80,16 @@ HardwareSerial mySerial1(1);
 #define BATT_X 100
 #define BATT_Y 3
 
-SPIClass spiTFT(HSPI); // Use default VSPI
+SPIClass spiTFT(
+    FSPI); // FSPI = SPI2 pada ESP32-S3 (HSPI tidak punya default pins di S3!)
 Adafruit_ST7735 tft = Adafruit_ST7735(&spiTFT, TFT_CS, TFT_DC, TFT_RST);
 
-static const uint8_t PIN_MP3_TX = 36; // D7
-static const uint8_t PIN_MP3_RX = 35; // D6
-SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX);
+// ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA
+// dipakai! Pin DFPlayer dipindah ke GPIO yang aman (di luar range 26-37)
+static const uint8_t PIN_MP3_TX = 41; // TX ke DFPlayer RX (GPIO aman)
+static const uint8_t PIN_MP3_RX = 16;  // RX dari DFPlayer TX (GPIO aman)
+// SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX); // ← DINONAKTIFKAN:
+// tidak dipakai
 
 DFRobotDFPlayerMini myDFPlayer;
 
@@ -77,86 +130,21 @@ unsigned long currentMillis; // Variabele to store the number of milleseconds
                              // since the Arduino has started
 unsigned long currentMillis2;
 
-const char *deret1[] = {"DERET 1",   "1. SABUN",  "2. KUDA",    "3. DINGIN",
-                        "4. BANYAK", "5. GULA",   "6. PIPI",    "7. BESAR",
-                        "8. ENAK",   "9. LIDAH",  "10. KEMBAR", "11. UMUR",
-                        "12. SALON", "13. TIKUS", "14. PANAH",  "15. BECAK",
-                        "16. NASI",  "17. ILMU",  "18. KAMAR",  "19. TELOR",
-                        "20. TEMPAT"};
-
-const char *deret2[] = {"DERET 2",   "1. WALI",   "2. HAKIM",  "3. PISTOL",
-                        "4. KORBAN", "5. DOSA",   "6. BELI",   "7. MEDAN",
-                        "8. KUMAN",  "9. NAIK",   "10. ADIK",  "11. IBU",
-                        "12. TUGAS", "13. JARUM", "14. SALEP", "15. KABAR",
-                        "16. TOMAT", "17. KAPUR", "18. ANGIN", "19. ENCER",
-                        "20. MUSUH"};
-
-const char *deret3[] = {"DERET 3",    "1. TULI",    "2. PADI",   "3. KELAS",
-                        "4. RAMBUT",  "5. NYAMUK",  "6. GARAM",  "7. BIDAN",
-                        "8. BUMI",    "9. KERAS",   "10. NIKAH", "11. OBAT",
-                        "12. KARCIS", "13. DALANG", "14. MESIN", "15. KUPON",
-                        "16. TAHUN",  "17. RESEP",  "18. BUKU",  "19. MATA",
-                        "20. LILIN"};
-
-const char *deret4[] = {"DERET 4",   "1. SAYANG",  "2. KAMPUS", "3. HARI ",
-                        "4. OBRAL",  "5. KENAL",   "6. HAMIL",  "7. KITAB",
-                        "8. GANTI",  "9. SAPI",    "10. JERUK", "11. RINDU",
-                        "12. HANTU", "13. MADU",   "14. SEMIR", "15. SAKIT",
-                        "16. LOMBA", "17. PENCAK", "18. BATUK", "19. DEBU",
-                        "20. BAKMI"};
-
-const char *deret5[] = {"DERET 5",    "1. ANAK",    "2. DARAH",   "3. USUL",
-                        "4. TEMBAK",  "5. MINUM",   "6. API",     "7. BULAN",
-                        "8. KILAT",   "9. BERSIH",  "10. KUNCI",  "11. SEDAP",
-                        "12. PASAR",  "13. DOKTER", "14. BETON",  "15. MULUT",
-                        "16. PAGI",   "17. AKAL",   "18. MISKIN", "19. BARU",
-                        "20. KENYANG"};
-
-const char *deret6[] = {"DERET 6",   "1. IMAN",   "2. POLA",     "3. BUKIT",
-                        "4. LIBUR",  "5. GADIS",  "6. DAPUR",    "7. JALAN",
-                        "8. PENDEK", "9. CAMBUK", "10. KEMBANG", "11. HALUS",
-                        "12. MUMI",  "13. SEMUT", "14. KIRI",    "15. OTAK",
-                        "16. PESTA", "17. RUKUN", "18. NASIB",   "19. TANAH",
-                        "20. AYAM"};
-
-const char *deret7[] = {"DERET 7",    "1. SUNTIK", "2. BARU",    "3. NYAWA",
-                        "4. KECAP",   "5. BOLA",   "6. MAKAN",   "7. MURID",
-                        "8. SAMPAH",  "9. NENEK",  "10. LEHER",  "11. ASIN",
-                        "12. KABEL",  "13. SOAL",  "14. KAIN",   "15. TIDUR",
-                        "16. BAIK",   "17. GURU",  "18. RUMPUT", "19. DIAM",
-                        "20. PLASTIK"};
-
-const char *deret8[] = {"DERET 8",    "1. TAKSI",  "2. PERUT",    "3. NONA",
-                        "4. PISANG",  "5. HUKUM",  "6. MEJA",     "7. BADAN",
-                        "8. LAMPU",   "9. GAMBAR", "10. LISTRIK", "11. UMUM",
-                        "12. PENSIL", "13. BUAH",  "14. CINA",    "15. KOREK",
-                        "16. BANTAL", "17. MANDI", "18. BAKUL",   "19. KURSI",
-                        "20. TEKAD"};
-
-const char *deret9[] = {"DERET 9",    "1. HATI",    "2. KOLAM",    "3. BUTA",
-                        "4. YAKIN",   "5. GEMUK",   "6. DINAS",    "7. BUDI",
-                        "8. LUPA",    "9. KERIS",   "10. KOPI",    "11. AMAL",
-                        "12. TAMU",   "13. LEMBUR", "14. SANDANG", "15. KECIL",
-                        "16. BANJIR", "17. PANAS",  "18. MURAH",   "19. TUAN"};
-
-const char *deret10[] = {"DERET 10",  "1. TEMPO",  "2. PINTU",    "3. HOTEL",
-                         "4. MINYAK", "5. BASAH",  "6. MODAL",    "7. BERAS",
-                         "8. DUKUN",  "9. KULIT",  "10. BATIK",   "11. IKAN",
-                         "12. DESA",  "13. AIR",   "14. KAMPUNG", "15. LINTAH",
-                         "16. MACAN", "17. SUMUR", "18. BENSIN",  "19. PERAK",
-                         "20. LAGU"};
-
-const int totalMessages = sizeof(deret1) / sizeof(deret1[0]);
-int currentIndex = 0;
-unsigned long lastChange = 0;
-const unsigned long interval = 8000; // 8.5 detik
-
 bool dokter_bicara = false;
-
-enum ChargerState { NOT_CHARGING, CHARGING, FULL };
 
 ChargerState lastState = NOT_CHARGING;
 ChargerState currentState;
+
+// === Dynamic Memory Profile (ADAPTIF — dihitung dari PSRAM fisik saat boot)
+// ===
+size_t totalPsramSize = 0;     // Diisi saat boot dari ESP.getPsramSize()
+size_t safePsramThreshold = 0; // 10% dari totalPsramSize (cadangan minimum)
+size_t totalFlashSize = 0;     // LittleFS total capacity
+const size_t SAFE_FLASH_MIN = 50 * 1024; // Minimal 50KB sisa flash
+const size_t SAFE_HEAP_MIN = 32768;      // Minimal 32KB internal heap
+
+// === Dynamic Slot Management ===
+int activeDaretCount = 10; // Default fallback (di-update saat boot & sync)
 
 unsigned long lastRTC = 0;
 int lastBatteryUpdate = 0;
@@ -172,98 +160,17 @@ struct Word {
 
 Word *words;
 
-Word words1[] = {
-    {0, "DERET 1"},        {13000, "1. SABUN"},   {20000, "2. KUDA"},
-    {26000, "3. DINGIN"},  {32000, "4. BANYAK"},  {39000, "5. GULA"},
-    {45000, "6. PIPI"},    {51000, "7. BESAR"},   {58000, "8. ENAK"},
-    {64000, "9. LIDAH"},   {71000, "10. KEMBAR"}, {77000, "11. UMUR"},
-    {83000, "12. SALON"},  {89000, "13. TIKUS"},  {96000, "14. PANAH"},
-    {103000, "15. BECAK"}, {109000, "16. NASI"},  {115000, "17. ILMU"},
-    {121000, "18. KAMAR"}, {127000, "19. TELOR"}, {134000, "20. TEMPAT"}};
-
-Word words2[] = {
-    {0, "DERET 2"},        {12000, "1. WALI"},    {19000, "2. HAKIM"},
-    {25000, "3. PISTOL"},  {31000, "4. KORBAN"},  {37000, "5. DOSA"},
-    {44000, "6. BELI"},    {51000, "7. MEDAN"},   {58000, "8. KUMAN"},
-    {64000, "9. NAIK"},    {71000, "10. ADIK"},   {79000, "11. IBU"},
-    {86000, "12. TUGAS"},  {92000, "13. JARUM"},  {99000, "14. SALEP"},
-    {106000, "15. KABAR"}, {113000, "16. TOMAT"}, {120000, "17. KAPUR"},
-    {127000, "18. ANGIN"}, {134000, "19. ENCER"}, {141000, "20. MUSUH"}};
-
-Word words3[] = {
-    {4000, "DERET 3"},     {10000, "1. TULI"},    {17000, "2. PADI"},
-    {24000, "3. KELAS"},   {31000, "4. RAMBUT"},  {38000, "5. NYAMUK"},
-    {46000, "6. GARAM"},   {53000, "7. BIDAN"},   {61000, "8. BUMI"},
-    {68000, "9. KERAS"},   {75000, "10. NIKAH"},  {82000, "11. OBAT"},
-    {89000, "12. KARCIS"}, {97000, "13. DALANG"}, {104000, "14. MESIN"},
-    {111000, "15. KUPON"}, {119000, "16. TAHUN"}, {125000, "17. RESEP"},
-    {132000, "18. BUKU"},  {140000, "19. MATA"},  {147000, "20. LILIN"}};
-
-Word words4[] = {
-    {5000, "DERET 4"},     {11000, "1. SAYANG"},  {18000, "2. KAMPUS"},
-    {25000, "3. HARI"},    {33000, "4. OBRAL"},   {41000, "5. KENAL"},
-    {48000, "6. HAMIL"},   {56000, "7. KITAB"},   {63000, "8. GANTI"},
-    {70000, "9. SAPI"},    {77000, "10. JERUK"},  {84000, "11. RINDU"},
-    {91000, "12. HANTU"},  {98000, "13. MADU"},   {105000, "14. SEMIR"},
-    {112000, "15. SAKIT"}, {118000, "16. LOMBA"}, {125000, "17. PENCAK"},
-    {131000, "18. BATUK"}, {138000, "19. DEBU"},  {145000, "20. BAKMI"}};
-
-Word words5[] = {
-    {4000, "DERET 5"},      {10000, "1. ANAK"},    {16000, "2. DARAH"},
-    {24000, "3. USUL"},     {30000, "4. TEMBAK"},  {37000, "5. MINUM"},
-    {43000, "6. API"},      {50000, "7. BULAN"},   {57000, "8. KILAT"},
-    {64000, "9. BERSIH"},   {72000, "10. KUNCI"},  {79000, "11. SEDAP"},
-    {85000, "12. PASAR"},   {93000, "13. DOKTER"}, {100000, "14. BETON"},
-    {107000, "15. MULUT"},  {114000, "16. PAGI"},  {121000, "17. AKAL"},
-    {128000, "18. MISKIN"}, {135000, "19. BARU"},  {141000, "20. KENYANG"}};
-
-Word words6[] = {
-    {5000, "DERET 6"},     {11000, "1. IMAN"},     {18000, "2. POLA"},
-    {25000, "3. BUKIT"},   {32000, "4. LIBUR"},    {40000, "5. GADIS"},
-    {47000, "6. DAPUR"},   {56000, "7. JALAN"},    {62000, "8. PENDEK"},
-    {70000, "9. CAMBUK"},  {78000, "10. KEMBANG"}, {85000, "11. HALUS"},
-    {92000, "12. MUMI"},   {100000, "13. SEMUT"},  {107000, "14. KIRI"},
-    {115000, "15. OTAK"},  {122000, "16. PESTA"},  {130000, "17. RUKUN"},
-    {138000, "18. NASIB"}, {146000, "19. TANAH"},  {153000, "20. AYAM"}};
-
-Word words7[] = {
-    {4000, "DERET 7"},      {9000, "1. SUNTIK"},  {17000, "2. BARU"},
-    {24000, "3. NYAWA"},    {32000, "4. KECAP"},  {38000, "5. BOLA"},
-    {45000, "6. MAKAN"},    {55000, "7. MURID"},  {61000, "8. SAMPAH"},
-    {69000, "9. NENEK"},    {76000, "10. LEHER"}, {83000, "11. ASIN"},
-    {91000, "12. KABEL"},   {99000, "13. SOAL"},  {106000, "14. KAIN"},
-    {113000, "15. TIDUR"},  {120000, "16. BAIK"}, {128000, "17. GURU"},
-    {135000, "18. RUMPUT"}, {143000, "19. DIAM"}, {150000, "20. PLASTIK"}};
-
-Word words8[] = {
-    {5000, "DERET 8"},      {12000, "1. TAKSI"},    {19000, "2. PERUT"},
-    {26000, "3. NONA"},     {35000, "4. PISANG"},   {43000, "5. HUKUM"},
-    {52000, "6. MEJA"},     {60000, "7. BADAN"},    {68000, "8. LAMPU"},
-    {77000, "9. GAMBAR"},   {85000, "10. LISTRIK"}, {92000, "11. UMUM"},
-    {100000, "12. PENSIL"}, {107000, "13. BUAH"},   {115000, "14. CINA"},
-    {123000, "15. KOREK"},  {130000, "16. BANTAL"}, {138000, "17. MANDI"},
-    {145000, "18. BAKUL"},  {152000, "19. KURSI"},  {158000, "20. TEKAD"}};
-
-Word words9[] = {
-    {5000, "DERET 9"},     {12000, "1. HATI"},     {19000, "2. KOLAM"},
-    {27000, "3. BUTA"},    {34000, "4. YAKIN"},    {41000, "5. GEMUK"},
-    {50000, "6. DINAS"},   {57000, "7. BUDI"},     {64000, "8. LUPA"},
-    {72000, "9. KERIS"},   {79000, "10. KOPI"},    {87000, "11. AMAL"},
-    {95000, "12. TAMU"},   {102000, "13. LEMBUR"}, {110000, "14. SANDANG"},
-    {119000, "15. KECIL"}, {127000, "16. BANJIR"}, {134000, "17. PANAS"},
-    {142000, "18. MURAH"}, {152000, "19. TUAN"}};
-
-Word words10[] = {
-    {6000, "DERET 10"},     {13000, "1. TEMPO"},   {22000, "2. PINTU"},
-    {32000, "3. HOTEL"},    {41000, "4. MINYAK"},  {50000, "5. BASAH"},
-    {59000, "6. MODAL"},    {70000, "7. BERAS"},   {80000, "8. DUKUN"},
-    {88000, "9. KULIT"},    {98000, "10. BATIK"},  {108000, "11. IKAN"},
-    {116000, "12. DESA"},   {125000, "13. AIR"},   {133000, "14. KAMPUNG"},
-    {142000, "15. LINTAH"}, {152000, "16. MACAN"}, {159000, "17. SUMUR"},
-    {168000, "18. BENSIN"}, {178000, "19. PERAK"}, {186000, "20. LAGU"}};
-const int totalWords = sizeof(words) / sizeof(words[0]);
+// === Semua data lirik disimpan di LittleFS, tidak ada hardcoded ===
 
 bool running = false;
+bool wordsFromLittleFS =
+    false; // Track apakah words saat ini dari LittleFS (perlu di-free)
+int loadedWordCount =
+    21; // Jumlah elemen aktif dalam array words[] (termasuk header)
+unsigned long lastButtonTime =
+    0; // Timestamp terakhir tombol ditekan (debounce)
+const unsigned long DEBOUNCE_MS =
+    250; // Minimum interval antar tekan tombol (ms)
 
 // --- FORWARD DECLARATIONS UNTUK PLATFORMIO ---
 void volume();
@@ -285,29 +192,92 @@ void tampiljam();
 void file();
 void listderet();
 void begin();
+void initBLE();
+void handleBLE();
+bool initLittleFS();
+bool deretExistsInLittleFS(int slot);
+Word *loadDeretFromLittleFS(int slot);
+void listLirikFiles();
+void freeLoadedWords();
+void displayDeretGeneric(int deretIndex, int page);
+int getDeretPageCount(int deretIndex);
+bool processDeret(JsonObject deret);
+void notifyStatus(const char *status);
+bool saveDeretToLittleFS(int slot, const String &name, const String &jsonWords);
+void sendCheckPayload();
+String buildCheckPayload();
+void initMemoryProfile();
+int scanDeretSlots();
+bool checkMemorySafety();
 // ---------------------------------------------
 
+/**
+ * Baca kapasitas PSRAM/Heap dari hardware saat boot.
+ * Threshold 90% dihitung dinamis — adaptif terhadap upgrade HW.
+ *
+ * Contoh:
+ *   PSRAM 8MB  → cadangan min 800KB (threshold = 7.2MB)
+ *   PSRAM 16MB → cadangan min 1.6MB (threshold = 14.4MB)
+ */
+void initMemoryProfile() {
+  totalPsramSize = ESP.getPsramSize();
+  safePsramThreshold =
+      totalPsramSize / 10; // 10% dari total = batas sisa minimum
+
+  Serial.println("\n========= MEMORY PROFILE =========");
+  Serial.printf("  Heap Total  : %u bytes\n", ESP.getHeapSize());
+  Serial.printf("  Heap Free   : %u bytes\n", ESP.getFreeHeap());
+  Serial.printf("  PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize,
+                totalPsramSize / 1048576.0);
+  Serial.printf("  PSRAM Free  : %u bytes\n", ESP.getFreePsram());
+  Serial.printf("  PSRAM Gate  : %u bytes (10%% reserved)\n",
+                safePsramThreshold);
+  Serial.println("==================================");
+}
+
 void setup() {
+  Serial.begin(115200);
+  delay(1000);          // Beri waktu serial stabil
+  esp_task_wdt_reset(); // ① Feed WDT setelah delay awal
+
+  initMemoryProfile(); // ★ PERTAMA: baca kapasitas memori hardware
+
   pinMode(TrigMic, OUTPUT);
   pinMode(TrigRlyDF, OUTPUT);
   digitalWrite(TrigMic, LOW);
   digitalWrite(TrigRlyDF, LOW);
   delay(200);
   pinMode(TrigPower, OUTPUT);
-  digitalWrite(TrigPower, LOW);
+  digitalWrite(TrigPower, HIGH);
   pinMode(14, INPUT);
-  Serial.begin(9600);
-  spiTFT.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);
+  spiTFT.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(2);
   pinMode(17, OUTPUT);
   digitalWrite(17, HIGH);
-  delay(200);
+  Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok
+                      // dengan data line PSRAM Octal!)
+
+#if SYNC_RTC_ON_BOOT
+  if (rtcLib.begin()) {
+    rtcLib.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    Serial.println("[RTC] OPSI 1: Jam otomatis dimutakhirkan dengan jam PC "
+                   "(waktu kompilasi)!");
+  } else {
+    Serial.println("[RTC] Gagal menemukan DS3231 saat boot sync.");
+  }
+#endif
+
+  readRTC(); // ★ Baca jam RTC SEBELUM splash screen agar tampiljam()
+             // menampilkan waktu yang benar
   begin();
-  Wire.begin(37, 38);
-  digitalWrite(buttonNext, LOW);
-  pinMode(buttonNext, INPUT);
-  pinMode(buttonPause, INPUT);
+  esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di
+                        // begin())
+  // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai
+  // Pullup
+  pinMode(buttonNext, INPUT_PULLUP);
+  pinMode(buttonPause, INPUT_PULLUP);
+  /*
   pinMode(buttonHome, INPUT);
   pinMode(buttonPrevious, INPUT);
   gpio_pulldown_en(GPIO_NUM_2); // aktifkan internal pull-down
@@ -317,6 +287,7 @@ void setup() {
   pinMode(buttonMode, INPUT);
   gpio_pulldown_en(GPIO_NUM_6); // aktifkan internal pull-down
   gpio_pullup_dis(GPIO_NUM_6);  // pastikan pull-up dimatikan
+  */
   pinMode(buttonMDokter, INPUT);
   // pinMode(buttonMPasien,INPUT);
   pinMode(buttonPower, INPUT_PULLUP);
@@ -334,31 +305,79 @@ void setup() {
   // drawBatteryScreen(currentState);
   // lastState = currentState;
 
-  mySerial1.begin(9600, SERIAL_8N1, 36, 35); // RX=1, TX=2 (Adjust as needed)
-  delay(1000);
+  mySerial1.begin(
+      9600, SERIAL_8N1, PIN_MP3_RX,
+      PIN_MP3_TX); // RX=GPIO7, TX=GPIO16 (aman, di luar range PSRAM 26-37)
+  mySerial1.setTimeout(1000);
+  delay(500);
+  esp_task_wdt_reset(); // ③ Feed WDT sebelum DFPlayer
   Serial.println("Initializing DFPlayer ...");
 
-  if (!myDFPlayer.begin(mySerial1, true, true)) {
-    Serial.println(F("Unable to begin DFPlayer: Check wiring or SD card."));
-    while (true)
-      ;
+#if DFPLAYER_ENABLED
+  if (!myDFPlayer.begin(mySerial1, /*isACK=*/false,
+                        /*isListenOnlyMode=*/true)) {
+    Serial.println(F("DFPlayer tidak ditemukan (Skip untuk testing)"));
+  } else {
+    Serial.println(F("DFPlayer terdeteksi!!!"));
+    myDFPlayer.volume(loud);
+    myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
+    myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
+    myDFPlayer.playFolder(1, 1);
+    delay(200);
+    myDFPlayer.stop();
   }
-
-  // ----Set volume----
-  myDFPlayer.volume(loud); // Set volume value (0~30).
-
-  //----Set different EQ----
-  myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
-
-  myDFPlayer.outputDevice(DFPLAYER_DEVICE_SD);
-  myDFPlayer.playFolder(1, 1);
-  delay(200);
-  myDFPlayer.stop();
+#else
+  // ★ KRITIS: HARUS tetap panggil begin() meskipun hardware tidak terhubung!
+  // Tanpa ini, internal pointer _serial di DFPlayer library = NULL.
+  // Setiap panggilan myDFPlayer.stop()/play()/pause() di kode lain
+  // akan memanggil sendStack() → write ke NULL → LoadProhibited crash!
+  myDFPlayer.begin(mySerial1, /*isACK=*/false, /*isListenOnlyMode=*/true);
+  Serial.println(F("[SETUP] DFPlayer: begin() called (stream registered), "
+                   "hardware SKIPPED"));
+#endif
+  mySerial1.setTimeout(1000);
+  esp_task_wdt_reset();        // ④ Feed WDT setelah DFPlayer selesai
   tft.setFont(&FreeSans9pt7b); // Atur font
   tft.setTextSize(1);
   readRTC();
   digitalWrite(TrigMic, HIGH);
   digitalWrite(TrigRlyDF, HIGH);
+
+  // Initialize LittleFS
+  if (initLittleFS()) {
+    Serial.println("[SETUP] LittleFS ready for lyrics storage");
+
+    // ★ Dynamic slot count dari LittleFS
+    activeDaretCount = scanDeretSlots();
+
+    // ★ Update flash diagnostics (LittleFS sudah mount)
+    totalFlashSize = LittleFS.totalBytes();
+
+    // Debug output diganti untuk menghindari spam LittleFS.exists()
+    Serial.println("[SETUP] Filesystem loaded.");
+
+    Serial.println("[SETUP] === STORAGE SUMMARY ===");
+    Serial.printf("[SETUP]   Active Derets : %d\n", activeDaretCount);
+    Serial.printf("[SETUP]   Flash Total   : %u bytes\n", totalFlashSize);
+    Serial.printf("[SETUP]   Flash Used    : %u bytes\n", LittleFS.usedBytes());
+    Serial.printf("[SETUP]   Flash Free    : %u bytes\n",
+                  totalFlashSize - LittleFS.usedBytes());
+    Serial.println("[SETUP] =============================");
+  } else {
+    Serial.println(
+        "[SETUP] WARNING: LittleFS failed, using hardcoded data only");
+  }
+
+  esp_task_wdt_reset(); // ⑤ Feed WDT sebelum BLE init
+  // Initialize BLE Server
+  initBLE();
+
+  Serial.println("[SETUP] ========================================");
+  Serial.println("[SETUP] System initialization COMPLETE");
+  Serial.printf("[SETUP]   Free Heap : %u bytes\n", ESP.getFreeHeap());
+  Serial.printf("[SETUP]   Free PSRAM: %u bytes\n", ESP.getFreePsram());
+  Serial.printf("[SETUP]   Slots     : %d\n", activeDaretCount);
+  Serial.println("[SETUP] ========================================");
 }
 
 void menu(int pilihan) {
@@ -411,6 +430,27 @@ void screening() {
 }
 
 void loop() {
+  // Reset watchdog untuk mencegah trigger
+  esp_task_wdt_reset();
+
+  // KUNCI AKSES: Jika sedang sinkronisasi via Bluetooth,
+  // Core 1 dilarang memproses UI (Jam, Baterai, dll) & Tombol.
+  // Ini mengamankan jalur layar (SPI) agar tidak terjadi Tabrakan/Deadlock.
+  if (isSyncing) {
+    vTaskDelay(10 /
+               portTICK_PERIOD_MS); // Mengalah (yield) agar system tidak marah
+    return;
+  }
+
+  handleBLE(); // Tangani data Bluetooth yang masuk
+
+  // Update Status Bluetooth di Layar secara berkala
+  static unsigned long lastBTCheck = 0;
+  if (millis() - lastBTCheck > 1000) {
+    drawBTIcon();
+    lastBTCheck = millis();
+  }
+
   if (digitalRead(buttonPower) == LOW) {
     if (on == true) {
       // isPlaying = false;
@@ -422,6 +462,7 @@ void loop() {
   oke();
   /////////////////////////////////button next ////////////////////////
   nextp();
+  /*
   /////////////////////////////////button previous ////////////////////////
   previouse();
   /////////////////////////////////button volume up ////////////////////////
@@ -430,6 +471,7 @@ void loop() {
   modee();
   // ///////////////////////////////button home ////////////////////////
   home();
+  */
   // ////////////////////////////////////////mic//////////////////////////////
   mic();
   if (posisi == 2) {
@@ -473,14 +515,14 @@ void loop() {
 
 void selanjutnya() {
   tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
-  currentIndex = 0;
+  currentWord = 0;
   tft.fillTriangle(90, 105, 90, 123, 107, 114, ST77XX_GREEN);
   tft.fillTriangle(100, 105, 100, 123, 117, 114, ST77XX_GREEN);
   delay(200);
   tft.fillRect(70, 15, 70, 25, ST77XX_BLACK);
   tft.setCursor(73, 35);
   deret++;
-  if (deret >= 11)
+  if (deret > activeDaretCount)
     deret = 1;
   tft.setTextSize(1);
   tft.print(deret);
@@ -501,7 +543,7 @@ void selanjutnya() {
 
 void sebelumnya() {
   tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
-  currentIndex = 0;
+  currentWord = 0;
   tft.fillTriangle(38, 105, 38, 123, 21, 114, ST77XX_GREEN);
   tft.fillTriangle(28, 105, 28, 123, 11, 114, ST77XX_GREEN);
   delay(200);
@@ -509,7 +551,7 @@ void sebelumnya() {
   tft.setCursor(73, 35);
   deret--;
   if (deret <= 0)
-    deret = 10;
+    deret = activeDaretCount;
   tft.setTextSize(1);
   tft.print(deret);
   tft.fillTriangle(38, 105, 38, 123, 21, 114, ST77XX_WHITE);
@@ -529,18 +571,18 @@ void sebelumnya() {
 
 void lirik() {
 
-  if (!running)
-    return; // penting, stop menghentikan counting
+  if (!running || words == NULL)
+    return; // Guard: jangan akses pointer NULL
 
   elapsedTime = millis() - startTime;
 
-  if (currentWord < 21) {
-
-    if (elapsedTime >= words[currentWord].time) {
+  // Lakukan pengecekan bounds ganda
+  if (currentWord >= 0 && currentWord < loadedWordCount) {
+    if (words[currentWord].text != NULL &&
+        elapsedTime >= words[currentWord].time) {
       tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
       tft.setCursor(10, 85);
       tft.print(words[currentWord].text);
-
       currentWord++;
     }
   }
@@ -564,25 +606,115 @@ void stopCounter() {
   lastDeret = 0;
 }
 
+// Free memory dari words yang di-load dari LittleFS
+void freeLoadedWords() {
+  if (wordsFromLittleFS && words != NULL) {
+    // Free setiap string
+    for (int i = 0; i < loadedWordCount; i++) {
+      if (words[i].text != NULL) {
+        free((void *)words[i].text); // strdup uses malloc
+      }
+    }
+    // Free array struct
+    delete[] words;
+    words = NULL;
+    wordsFromLittleFS = false;
+    Serial.print("[MEM] Freed. Heap free: ");
+    Serial.print(ESP.getFreeHeap());
+    Serial.println(" B");
+  }
+}
+
 void listderet() {
-  if (deret == 1)
-    words = words1;
-  if (deret == 2)
-    words = words2;
-  if (deret == 3)
-    words = words3;
-  if (deret == 4)
-    words = words4;
-  if (deret == 5)
-    words = words5;
-  if (deret == 6)
-    words = words6;
-  if (deret == 7)
-    words = words7;
-  if (deret == 8)
-    words = words8;
-  if (deret == 9)
-    words = words9;
-  if (deret == 10)
-    words = words10;
+  // Selalu bersihkan data sebelumnya
+  freeLoadedWords();
+
+  // Muat dari LittleFS
+  if (deretExistsInLittleFS(deret)) {
+    Word *loaded = loadDeretFromLittleFS(deret);
+    if (loaded != NULL) {
+      words = loaded;
+      wordsFromLittleFS = true;
+      return;
+    }
+  }
+
+  // Slot tidak ada di LittleFS - bersihkan pointer
+  words = NULL;
+  wordsFromLittleFS = false;
+  loadedWordCount = 0;
+  Serial.print("[DERET] Slot ");
+  Serial.print(deret);
+  Serial.println(" tidak ada di LittleFS.");
+}
+
+// --- FUNGSI UI BLE (TFT) ---
+void drawBTIcon() {
+  extern bool bleConnected;
+  extern bool isSyncing;
+
+  // Skip update icon jika sedang sync agar tidak ada race condition
+  if (isSyncing)
+    return;
+
+  int x = 60; // Spasi aman dari jam
+  int y = 1;  // Koordinat Y diangkat ke atas agar lebih pas
+  int w = 5;  // Lebar ikon
+  int h = 8;  // Tinggi ikon 8px tetap agar proporsional jam
+
+  if (bleConnected) {
+    uint16_t color = ST77XX_CYAN;
+
+    // Simbol Bluetooth (Fine-Tuned 8px Alignment)
+    tft.drawLine(x + w / 2, y, x + w / 2, y + h, color);         // Vertikal
+    tft.drawLine(x + w / 2, y, x + w, y + h / 4, color);         // Atas
+    tft.drawLine(x + w, y + h / 4, x, y + 3 * h / 4, color);     // Silang bawah
+    tft.drawLine(x, y + h / 4, x + w, y + 3 * h / 4, color);     // Silang atas
+    tft.drawLine(x + w, y + 3 * h / 4, x + w / 2, y + h, color); // Bawah
+  } else {
+    // Hapus total area bluetooth jika putus
+    tft.fillRect(x, y - 1, w + 2, h + 2, ST77XX_BLACK);
+  }
+}
+
+void showSyncingUI(int slot, int total) {
+  isSyncing = true;
+  tft.fillRect(0, 40, 128, 80, ST77XX_BLACK);
+  tft.drawRect(5, 45, 118, 70, ST77XX_CYAN);
+
+  tft.setFont(NULL); // Gunakan font standar agar cepat
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(15, 55);
+  tft.print("SYNCING LIRIK...");
+
+  tft.setCursor(15, 75);
+  tft.print("Saving Slot: ");
+  tft.print(slot);
+
+  // Progress Bar (dinamis berdasarkan total slot yang di-sync)
+  tft.drawRect(15, 95, 98, 10, ST77XX_WHITE);
+  int progressW = (slot * 94) / max(total, 1);
+  tft.fillRect(17, 97, progressW, 6, ST77XX_CYAN);
+}
+
+void hideSyncingUI() {
+  // Paksa clear area icon bluetooth sebelum fill screen
+  tft.fillRect(60, 0, 7, 10, ST77XX_BLACK);
+
+  tft.fillScreen(ST77XX_BLACK);
+
+  // Clear area icon bluetooth lagi setelah fill screen
+  tft.fillRect(60, 0, 7, 10, ST77XX_BLACK);
+
+  tft.setFont(&FreeSans9pt7b);
+
+  // Reset flag sync
+  isSyncing = false;
+
+  // Paksa kembali ke menu utama agar tidak tersesat di blackscreen
+  posisi = 1;
+  on = true; // Pastikan flag tampilan aktif
+  extern void drawMainMenu();
+  drawMainMenu(); // Gambar ulang menu utama tanpa menunggu tombol
+  Serial.println("[UI] Screen recovered after sync");
 }

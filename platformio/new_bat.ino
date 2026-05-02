@@ -1,11 +1,23 @@
+#ifndef ADC_MAX
 #define ADC_MAX     4095.0
+#endif
+#ifndef VREF
 #define VREF        3.3
+#endif
 
+#ifndef BAT_FULL
 #define BAT_FULL    4.1
+#endif
+#ifndef BAT_EMPTY
 #define BAT_EMPTY   3.2
+#endif
 
+#ifndef ADC_GAIN
 #define ADC_GAIN    0.991
+#endif
+#ifndef ADC_OFFSET
 #define ADC_OFFSET  0.270
+#endif
 
 float lastStableVoltage = 0;
 int stablePercent = -1;

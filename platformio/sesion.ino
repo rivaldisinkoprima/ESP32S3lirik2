@@ -1,7 +1,7 @@
   void sesion(){
           tft.fillRect(8, 70, 150, 20, ST77XX_BLACK);
           deret = 1;
-          currentIndex = 0;
+          currentWord = 0;
             if (isPlaying==false){
             if (mode==1) {myDFPlayer.playFolder(1,1);}
             if (mode==2) {myDFPlayer.playFolder(2,1);}

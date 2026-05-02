@@ -2,15 +2,29 @@
 #define CHRG_IN 45
 #define STBY_IN 14
 
+#ifndef ADC_MAX
 #define ADC_MAX     4095.0
+#endif
+#ifndef VREF
 #define VREF        3.3
+#endif
+#ifndef DIV_RATIO
 #define DIV_RATIO   2.0
+#endif
 
+#ifndef BAT_FULL
 #define BAT_FULL    4.2
+#endif
+#ifndef BAT_EMPTY
 #define BAT_EMPTY   3.0
+#endif
 
+#ifndef ADC_GAIN
 #define ADC_GAIN    0.991
+#endif
+#ifndef ADC_OFFSET
 #define ADC_OFFSET  0.270
+#endif
 
 
 

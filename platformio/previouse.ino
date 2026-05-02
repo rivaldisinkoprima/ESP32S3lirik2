@@ -1,10 +1,11 @@
 void previouse(){
-      if (digitalRead(buttonPrevious) == HIGH) {
+      if (digitalRead(buttonPrevious) == HIGH && millis() - lastButtonTime > DEBOUNCE_MS) {
+        lastButtonTime = millis();
+        
         if (posisi==1){    
         pilihan--;
         if (pilihan<=0) pilihan =3;
         menu(pilihan);
-        delay(500);
        }
        else if(posisi==2){
             sebelumnya();
@@ -22,9 +23,8 @@ void previouse(){
             if (mode==3) {myDFPlayer.playFolder(3,deret);}
              myDFPlayer.pause();
              isPlaying=false;}
-             currentIndex = 0;
+             currentWord = 0;
             Serial.println("Previous Song..");
-            delay(500);             
             }
       else if (posisi==3){
             myDFPlayer.stop();
@@ -37,35 +37,23 @@ void previouse(){
             if (jam < 10) tft.print("0");
             tft.print(jam);
             tft.setTextSize(1);
-            delay (500);
           } 
       else if (posisi==4){
         myDFPlayer.stop();
         isPlaying = false;
         selectedIndex--;
         if (selectedIndex < 0) {
-        selectedIndex = menuCount - 1;
+        selectedIndex = getMenuCount() - 1;
         }
         page = selectedIndex / itemsPerPage;
         displayMenu();
-        delay(500);
           }
       else if (posisi==5){
-      //  myDFPlayer.stop();
-      //  isPlaying = false;
+      int maxPages = getDeretPageCount(selectedIndex);
       if (halaman > 0) halaman--;
-      else halaman = 2;
-      if (selectedIndex==0)displayderet1(halaman);
-      if (selectedIndex==1)displayderet2(halaman);
-      if (selectedIndex==2) displayderet3(halaman);
-      if (selectedIndex==3) displayderet4(halaman);
-      if (selectedIndex==4) displayderet5(halaman);
-      if (selectedIndex==5) displayderet6(halaman);
-      if (selectedIndex==6) displayderet7(halaman);
-      if (selectedIndex==7) displayderet8(halaman);
-      if (selectedIndex==8) displayderet9(halaman);
-      if (selectedIndex==9) displayderet10(halaman);
-      delay(500);
+      else halaman = maxPages - 1;
+      // Gunakan fungsi generik
+      displayDeretGeneric(selectedIndex, halaman);
        }
     }   
     }

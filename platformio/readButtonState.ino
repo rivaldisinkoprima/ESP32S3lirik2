@@ -26,7 +26,7 @@ void readButtonState() {
       digitalWrite(TrigMic,LOW);
       digitalWrite(TrigRlyDF,LOW);
       digitalWrite(17,LOW);
-      digitalWrite(TrigPower,HIGH);
+      digitalWrite(TrigPower,LOW);
       //digitalWrite(pinLED, LOW);
 
     }

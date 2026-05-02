@@ -1,5 +1,7 @@
 void tampiljam(){
   tft.setFont(NULL);
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
   tft.setCursor(5,2);
   if (l_hour < 10) tft.print("0");
   tft.print(l_hour);
