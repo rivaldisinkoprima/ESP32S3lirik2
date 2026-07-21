@@ -93,7 +93,7 @@ static const uint8_t PIN_MP3_RX = 16;  // RX dari DFPlayer TX (GPIO aman)
 
 DFRobotDFPlayerMini myDFPlayer;
 
-int buttonNext = 15;
+int buttonNext = 9;
 int buttonPause = 3; // PB5;
 int buttonHome = 1;
 int buttonPrevious = 2;
