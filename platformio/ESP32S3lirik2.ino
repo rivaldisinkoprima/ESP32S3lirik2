@@ -63,12 +63,13 @@ void setRtcTime(byte h, byte m, byte s) {
 
 HardwareSerial mySerial1(1);
 
-#define TFT_CS 13
-#define TFT_RST 12
-#define TFT_DC 11
-#define TFT_MOSI 10
-#define TFT_SCK 15
+#define TFT_CS 15
+#define TFT_RST 16
+#define TFT_DC 17
+#define TFT_MOSI 18
+#define TFT_SCK 8
 #define TFT_MISO -1
+#define TFT_LIGHT 19
 
 #define PIN_CHRG 45
 #define PIN_STBY 48
