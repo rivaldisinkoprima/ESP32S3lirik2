@@ -71,12 +71,14 @@ HardwareSerial mySerial1(1);
 #define TFT_MISO -1
 #define TFT_LIGHT 19
 
-#define PIN_CHRG 45
-#define PIN_STBY 48
+#define PIN_CHRG 1
+#define PIN_STBY 2
+
+#define BAT_ADC_PIN 5
 
 #define DS3231_ADDRESS 0x68 // Alamat default RTC DS3231
 
-#define BAT_ADC_PIN 5
+
 
 #define BATT_X 100
 #define BATT_Y 3
