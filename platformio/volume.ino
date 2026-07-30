@@ -1,6 +1,7 @@
       void volume(){
        
-      if(digitalRead(buttonVolup)==HIGH){
+      if(digitalRead(buttonVolup)==LOW&& millis() - lastButtonTime > DEBOUNCE_MS) {
+        lastButtonTime = millis();
         if(posisi==2&&(isPlaying ||isPlaying == false)){
           loud++;
           if(loud>=24) loud = 23;
@@ -28,9 +29,10 @@
             tft.print(menit);
             tft.setTextSize(1);
           }
-          delay(500);
+          Serial.printf("Button volume up ditekan");
       }
-        if(digitalRead(buttonVoldown)==HIGH){
+        if(digitalRead(buttonVoldown)==LOW&& millis() - lastButtonTime > DEBOUNCE_MS) {
+          lastButtonTime = millis();
         if(posisi==2&&(isPlaying ||isPlaying == false)){
           loud--;
           if(loud<=12) loud = 0;
@@ -59,7 +61,7 @@
             tft.print(menit);
             tft.setTextSize(1);
           }
-          delay(500);
+          Serial.printf("Button volume down ditekan");
       }
       //Serial.println(myDFPlayer.readVolume());
       }

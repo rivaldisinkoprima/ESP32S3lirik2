@@ -64,6 +64,7 @@ void nextp(){
       // Gunakan fungsi generik
       displayDeretGeneric(selectedIndex, halaman);
       }
+      Serial.printf("Button next ditekan");
       }
     }
     

@@ -1,5 +1,5 @@
 void mic(){
-if (digitalRead(buttonMDokter) == HIGH) {
+if (digitalRead(buttonMDokter) == LOW) {
 digitalWrite(TrigMic,HIGH);
 digitalWrite(TrigRlyDF,LOW);
 myDFPlayer.stop();
@@ -8,4 +8,10 @@ tft.setCursor(63,155);
 tft.print("mic doc");
 Serial.println("dokter bicara");
 dokter_bicara = true;
-}}
+}
+if (digitalRead(buttonMPasien) == LOW) {
+tft.print("mic pasien");
+Serial.println("pasien bicara");
+dokter_bicara = false;
+}
+}

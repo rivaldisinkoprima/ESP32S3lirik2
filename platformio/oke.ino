@@ -71,5 +71,6 @@ void oke() {
                 displayDeretGeneric(selectedIndex, halaman);
             }
         }
+        Serial.printf("Button pause ditekan");
     }
 }

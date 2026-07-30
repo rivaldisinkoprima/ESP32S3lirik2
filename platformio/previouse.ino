@@ -1,5 +1,5 @@
 void previouse(){
-      if (digitalRead(buttonPrevious) == HIGH && millis() - lastButtonTime > DEBOUNCE_MS) {
+      if (digitalRead(buttonPrevious) == LOW && millis() - lastButtonTime > DEBOUNCE_MS) {
         lastButtonTime = millis();
         
         if (posisi==1){    
@@ -55,5 +55,6 @@ void previouse(){
       // Gunakan fungsi generik
       displayDeretGeneric(selectedIndex, halaman);
        }
+       Serial.println("[BUTTON] Tombol Previous ditekan");
     }   
     }

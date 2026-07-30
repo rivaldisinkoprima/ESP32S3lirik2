@@ -1,6 +1,6 @@
 void modee(){
         static byte hourSet, minuteSet;
-        if(digitalRead(buttonMode)==HIGH){
+        if(digitalRead(buttonMode)==LOW){
         if(posisi==2){
           mode--;
           if(mode<=0)mode=3;
@@ -25,6 +25,7 @@ void modee(){
           tft.setTextSize(1);
           readRTC();
         }
+          Serial.printf("Button mode ditekan");
           delay(200);
       }
 }

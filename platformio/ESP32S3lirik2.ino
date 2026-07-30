@@ -10,10 +10,10 @@
 // Jika tetap 1, jam akan di-reset setiap boot!
 // ============================================================
 #define SYNC_RTC_ON_BOOT 1 // Ubah ke 1 untuk sync, 0 untuk normal
+#include <Arduino.h>
 #include "driver/adc.h"
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
-#include <Arduino.h>
 #include <DFRobotDFPlayerMini.h>
 #include <SD.h>
 #include <SPI.h>
@@ -43,7 +43,7 @@ RTC_DS3231 rtcLib;
 
 // Tulis jam/menit/detik langsung ke DS3231 via I2C raw
 // Dipanggil dari: Opsi 1 (boot) & BLE @SET_TIME command
-void setRtcTime(byte h, byte m, byte s) {
+  void setRtcTime(byte h, byte m, byte s) {
   Wire.beginTransmission(0x68); // DS3231 I2C address
   Wire.write(0x00);
   extern byte decToBcd(byte val);
@@ -63,16 +63,16 @@ void setRtcTime(byte h, byte m, byte s) {
 
 HardwareSerial mySerial1(1);
 
-#define TFT_CS 15
-#define TFT_RST 16
-#define TFT_DC 17
-#define TFT_MOSI 18
-#define TFT_SCK 8
-#define TFT_MISO -1
+#define TFT_CS    15
+#define TFT_RST   16
+#define TFT_DC    17
+#define TFT_MOSI  18
+#define TFT_SCK    8
+#define TFT_MISO  -1
 #define TFT_LIGHT 19
 
-#define PIN_CHRG 1
-#define PIN_STBY 2
+#define PIN_CHRG  1
+#define PIN_STBY  2
 
 #define BAT_ADC_PIN 5
 
@@ -83,34 +83,33 @@ HardwareSerial mySerial1(1);
 #define BATT_X 100
 #define BATT_Y 3
 
-SPIClass spiTFT(
-    FSPI); // FSPI = SPI2 pada ESP32-S3 (HSPI tidak punya default pins di S3!)
+SPIClass spiTFT(FSPI); // FSPI = SPI2 pada ESP32-S3 (HSPI tidak punya default pins di S3!)
 Adafruit_ST7735 tft = Adafruit_ST7735(&spiTFT, TFT_CS, TFT_DC, TFT_RST);
 
 // ⚠️  GPIO 35 & 36 = PSRAM Octal data lines di ESP32-S3 N16R8, TIDAK BISA
 // dipakai! Pin DFPlayer dipindah ke GPIO yang aman (di luar range 26-37)
-static const uint8_t PIN_MP3_TX = 41; // TX ke DFPlayer RX (GPIO aman)
-static const uint8_t PIN_MP3_RX = 16;  // RX dari DFPlayer TX (GPIO aman)
+static const uint8_t PIN_MP3_TX = 10; // TX ke DFPlayer RX (GPIO aman)
+static const uint8_t PIN_MP3_RX = 9;  // RX dari DFPlayer TX (GPIO aman)
 // SoftwareSerial mySoftwareSerial(PIN_MP3_RX, PIN_MP3_TX); // ← DINONAKTIFKAN:
 // tidak dipakai
 
 DFRobotDFPlayerMini myDFPlayer;
 
-int buttonNext = 5;
-int buttonPause = 3; // PB5;
-int buttonHome = 1;
-int buttonPrevious = 2;
-int buttonVolup = 18;
-int buttonVoldown = 9;
-int buttonMode = 6; // PB3;
-int buttonMDokter = 19;
-// int buttonMPasien = 5;
-int buttonPower = 46;
+const int buttonNext      = 41;
+const int buttonPause     = 48;
+const int buttonHome      = 42;
+const int buttonPrevious  = 21;
+const int buttonVolup     = 20;
+const int buttonVoldown   = 3;
+const int buttonMode      = 39;
+const int buttonMDokter   = 47;
+const int buttonMPasien   = 40;
+const int buttonPower     = 14;
 int TrigMic = 8;    /////
-int TrigPower = 21; /////////
-int TrigRlyDF = 20; ///////////
+int TrigPower = 13; /////////
+int TrigRlyDF = 5; ///////////
 int pinLED = 55;    // PB12;
-int pinBatt = 45;   ///////
+int pinBatt = 45;   //////
 
 int last_percent = 0;
 
@@ -166,14 +165,10 @@ Word *words;
 // === Semua data lirik disimpan di LittleFS, tidak ada hardcoded ===
 
 bool running = false;
-bool wordsFromLittleFS =
-    false; // Track apakah words saat ini dari LittleFS (perlu di-free)
-int loadedWordCount =
-    21; // Jumlah elemen aktif dalam array words[] (termasuk header)
-unsigned long lastButtonTime =
-    0; // Timestamp terakhir tombol ditekan (debounce)
-const unsigned long DEBOUNCE_MS =
-    250; // Minimum interval antar tekan tombol (ms)
+bool wordsFromLittleFS = false; // Track apakah words saat ini dari LittleFS (perlu di-free)
+int loadedWordCount = 21; // Jumlah elemen aktif dalam array words[] (termasuk header)
+unsigned long lastButtonTime = 0; // Timestamp terakhir tombol ditekan (debounce)
+const unsigned long DEBOUNCE_MS = 250; // Minimum interval antar tekan tombol (ms)
 
 // --- FORWARD DECLARATIONS UNTUK PLATFORMIO ---
 void volume();
@@ -224,17 +219,14 @@ bool checkMemorySafety();
  */
 void initMemoryProfile() {
   totalPsramSize = ESP.getPsramSize();
-  safePsramThreshold =
-      totalPsramSize / 10; // 10% dari total = batas sisa minimum
+  safePsramThreshold = totalPsramSize / 10; // 10% dari total = batas sisa minimum
 
   Serial.println("\n========= MEMORY PROFILE =========");
   Serial.printf("  Heap Total  : %u bytes\n", ESP.getHeapSize());
   Serial.printf("  Heap Free   : %u bytes\n", ESP.getFreeHeap());
-  Serial.printf("  PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize,
-                totalPsramSize / 1048576.0);
+  Serial.printf("  PSRAM Total : %u bytes (%.1f MB)\n", totalPsramSize, totalPsramSize / 1048576.0);
   Serial.printf("  PSRAM Free  : %u bytes\n", ESP.getFreePsram());
-  Serial.printf("  PSRAM Gate  : %u bytes (10%% reserved)\n",
-                safePsramThreshold);
+  Serial.printf("  PSRAM Gate  : %u bytes (10%% reserved)\n", safePsramThreshold);
   Serial.println("==================================");
 }
 
@@ -252,12 +244,10 @@ void setup() {
   delay(200);
   pinMode(TrigPower, OUTPUT);
   digitalWrite(TrigPower, HIGH);
-  pinMode(14, INPUT);
+  // pinMode(14, INPUT);
   spiTFT.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(2);
-  pinMode(17, OUTPUT);
-  digitalWrite(17, HIGH);
   Wire.begin(39, 40); // SDA=39, SCL=40 (Dipindah karena GPIO 37 & 38 bentrok
                       // dengan data line PSRAM Octal!)
 
@@ -280,19 +270,13 @@ void setup() {
   // Pullup
   pinMode(buttonNext, INPUT_PULLUP);
   pinMode(buttonPause, INPUT_PULLUP);
-  /*
-  pinMode(buttonHome, INPUT);
-  pinMode(buttonPrevious, INPUT);
-  gpio_pulldown_en(GPIO_NUM_2); // aktifkan internal pull-down
-  gpio_pullup_dis(GPIO_NUM_2);  // pastikan pull-up dimatikan
-  pinMode(buttonVolup, INPUT);
-  pinMode(buttonVoldown, INPUT);
-  pinMode(buttonMode, INPUT);
-  gpio_pulldown_en(GPIO_NUM_6); // aktifkan internal pull-down
-  gpio_pullup_dis(GPIO_NUM_6);  // pastikan pull-up dimatikan
-  */
-  pinMode(buttonMDokter, INPUT);
-  // pinMode(buttonMPasien,INPUT);
+  pinMode(buttonHome, INPUT_PULLUP);
+  pinMode(buttonPrevious, INPUT_PULLUP);
+  pinMode(buttonVolup, INPUT_PULLUP);
+  pinMode(buttonVoldown, INPUT_PULLUP);
+  pinMode(buttonMode, INPUT_PULLUP);
+  pinMode(buttonMDokter, INPUT_PULLUP);
+  pinMode(buttonMPasien, INPUT_PULLUP);
   pinMode(buttonPower, INPUT_PULLUP);
   pinMode(PIN_CHRG, INPUT_PULLUP);
   pinMode(PIN_STBY, INPUT_PULLUP);
@@ -303,14 +287,7 @@ void setup() {
     delay(10);
   }
 
-  // --- BARU BOLEH GAMBAR ---
-  // currentState = getChargerState();
-  // drawBatteryScreen(currentState);
-  // lastState = currentState;
-
-  mySerial1.begin(
-      9600, SERIAL_8N1, PIN_MP3_RX,
-      PIN_MP3_TX); // RX=GPIO7, TX=GPIO16 (aman, di luar range PSRAM 26-37)
+  mySerial1.begin(9600, SERIAL_8N1, PIN_MP3_RX, PIN_MP3_TX); // RX=GPIO7, TX=GPIO16 (aman, di luar range PSRAM 26-37)
   mySerial1.setTimeout(1000);
   delay(500);
   esp_task_wdt_reset(); // ③ Feed WDT sebelum DFPlayer
@@ -465,16 +442,15 @@ void loop() {
   oke();
   /////////////////////////////////button next ////////////////////////
   nextp();
-  /*
+  
   /////////////////////////////////button previous ////////////////////////
   previouse();
   /////////////////////////////////button volume up ////////////////////////
   volume();
   /////////////////////////////////button mode ////////////////////////
   modee();
-  // ///////////////////////////////button home ////////////////////////
+  /////////////////////////////////button home ////////////////////////
   home();
-  */
   // ////////////////////////////////////////mic//////////////////////////////
   mic();
   if (posisi == 2) {

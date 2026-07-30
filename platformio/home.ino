@@ -11,7 +11,8 @@ void drawMainMenu() {
 
 // Fungsi Original untuk Handle Tombol Home
 void home() {
-  if (digitalRead(buttonHome) == HIGH) {
+  if (digitalRead(buttonHome) == LOW&& millis() - lastButtonTime > DEBOUNCE_MS) {
+    lastButtonTime = millis();
     digitalWrite(TrigMic, HIGH);
     myDFPlayer.stop();
     currentWord = 0;
@@ -27,6 +28,7 @@ void home() {
       stopCounter();
       selectedIndex = 0;
     }
-    delay(200);
+    Serial.println("[HOME] Tombol Home ditekan, kembali ke menu utama");  
+    //delay(200);
   }
 }
