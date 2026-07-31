@@ -105,11 +105,14 @@ const int buttonMode      = 39;
 const int buttonMDokter   = 47;
 const int buttonMPasien   = 40;
 const int buttonPower     = 14;
-int TrigMic = 8;    /////
-int TrigPower = 13; /////////
-int TrigRlyDF = 5; ///////////
-int pinLED = 55;    // PB12;
-int pinBatt = 45;   //////
+// =========================
+// Output Pin Definitions
+// =========================
+const int TrigMic         = 4;
+const int TrigRlyDF       = 5;
+const int TrigPower       = 13;
+const int pinBatt         = 6;
+const int pinLED          = 55;
 
 int last_percent = 0;
 
