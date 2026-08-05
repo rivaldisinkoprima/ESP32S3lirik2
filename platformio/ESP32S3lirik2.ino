@@ -63,7 +63,7 @@ RTC_DS3231 rtcLib;
 
 HardwareSerial mySerial1(1);
 
-#define TFT_CS    15
+#define TFT_CS    99//15
 #define TFT_RST   16
 #define TFT_DC    17
 #define TFT_MOSI  18
