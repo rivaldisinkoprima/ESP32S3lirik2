@@ -63,7 +63,7 @@ RTC_DS3231 rtcLib;
 
 HardwareSerial mySerial1(1);
 
-#define TFT_CS    99//15
+#define TFT_CS    15
 #define TFT_RST   16
 #define TFT_DC    17
 #define TFT_MOSI  18
@@ -110,7 +110,7 @@ const int buttonPower     = 14;
 // =========================
 const int TrigMic         = 4;
 const int TrigRlyDF       = 5;
-const int TrigPower       = 13;
+const int TrigPower       = 45;
 const int pinBatt         = 6;
 const int pinLED          = 55;
 
@@ -239,14 +239,14 @@ void setup() {
   esp_task_wdt_reset(); // ① Feed WDT setelah delay awal
 
   initMemoryProfile(); // ★ PERTAMA: baca kapasitas memori hardware
-
+  pinMode(TrigPower, OUTPUT);
+  digitalWrite(TrigPower, HIGH);
   pinMode(TrigMic, OUTPUT);
   pinMode(TrigRlyDF, OUTPUT);
   digitalWrite(TrigMic, LOW);
   digitalWrite(TrigRlyDF, LOW);
   delay(200);
-  pinMode(TrigPower, OUTPUT);
-  digitalWrite(TrigPower, HIGH);
+
   // pinMode(14, INPUT);
   spiTFT.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.initR(INITR_BLACKTAB);
@@ -266,7 +266,10 @@ void setup() {
 
   readRTC(); // ★ Baca jam RTC SEBELUM splash screen agar tampiljam()
              // menampilkan waktu yang benar
+  pinMode(TFT_LIGHT, OUTPUT);
+  digitalWrite(TFT_LIGHT, HIGH);
   begin();
+
   esp_task_wdt_reset(); // ② Feed WDT setelah splash screen (4200ms delays di
                         // begin())
   // digitalWrite(buttonNext, LOW); // Jangan ditarik low jika ingin pakai

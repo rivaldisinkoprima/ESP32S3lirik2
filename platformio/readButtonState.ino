@@ -27,7 +27,7 @@ void readButtonState() {
       digitalWrite(TrigRlyDF,LOW);
       digitalWrite(17,LOW);
       digitalWrite(TrigPower,LOW);
-      //digitalWrite(pinLED, LOW);
+      digitalWrite(TFT_LIGHT, LOW);
 
     }
     if (buttonState == HIGH && buttonStatePrevious == LOW) {
